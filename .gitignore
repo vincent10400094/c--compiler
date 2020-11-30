@@ -50,3 +50,13 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Additinal files
+.DS_Store
+*.pdf
+
+# Output files
+parser.output
+parser.tab.h
+parser
+lex.yy.c
