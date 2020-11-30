@@ -58,5 +58,6 @@ dkms.conf
 # Output files
 parser.output
 parser.tab.h
+parser.tab.c
 parser
 lex.yy.c
