@@ -17,6 +17,7 @@ int HASH(char* str) {
 }
 
 SymbolTable *topSymbolTable;
+SymbolTable *firstSymbolTable, *currentSymbolTable;
 int maxScope;
 
 SymbolTableEntry* newSymbolTableEntry(int nestingLevel) {
@@ -29,11 +30,11 @@ SymbolTableEntry* newSymbolTableEntry(int nestingLevel) {
 }
 
 void initializeSymbolTable() {
-  topSymbolTable = NULL;
   maxScope = 0;
   topSymbolTable = (SymbolTable*)malloc(sizeof(SymbolTable));
-  topSymbolTable->prevInStack = NULL;
+  topSymbolTable->prevTable = NULL;
   topSymbolTable->scope = 0;
+  firstSymbolTable = currentSymbolTable = topSymbolTable;
 }
 
 void symbolTableEnd() {
@@ -52,11 +53,11 @@ SymbolTableEntry *lookupSymbolTable(SymbolTable *table, char *symbolname) {
   return NULL;
 }
 
-SymbolTableEntry *insertSymbolTalbe(SymbolTable *table, char* symbolName, SymbolAttribute* attribute) {
+SymbolTableEntry *insertSymbolTable(SymbolTable *table, char* symbolName, SymbolAttribute* attribute) {
   assert(attribute != NULL && symbolName != NULL);
   int hashkey = HASH(symbolName);
   SymbolTableEntry *newEntry = (SymbolTableEntry*)malloc(sizeof(SymbolTableEntry));
-  strcpy(newEntry->name, symbolName);
+  newEntry->name = strdup(symbolName);
   newEntry->attribute = attribute;
   newEntry->scope = table->scope;
   SymbolTableEntry *symptr = table->hashTable[hashkey];
@@ -74,18 +75,39 @@ SymbolTableEntry* retrieveSymbol(char* symbolName) {
   SymbolTable *currentSymbolTable = topSymbolTable;
   SymbolTableEntry* entry;
   while ((currentSymbolTable != NULL) && ((entry = lookupSymbolTable(currentSymbolTable, symbolName)) == NULL)) {
-    currentSymbolTable = currentSymbolTable->prevInStack;
+    currentSymbolTable = currentSymbolTable->prevTable;
   }
   return entry;
 }
 
 SymbolTableEntry* enterSymbol(char* symbolName, SymbolAttribute* attribute) {
-  return insertSymbolTalbe(topSymbolTable, symbolName, attribute);
+  return insertSymbolTable(topSymbolTable, symbolName, attribute);
+}
+
+void printSymbolTable(SymbolTable *table) {
+  printf("%-5d", table->scope);
+  SymbolTableEntry *symptr;
+  for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+    symptr = table->hashTable[i];
+    while (symptr) {
+      printf("%s ", symptr->name);
+      symptr = symptr->nextInHashChain;
+    }
+  }
+  putchar('\n');
+}
+
+void printAllTable() {
+  SymbolTable *ptr = firstSymbolTable;
+  while (ptr != NULL) {
+    printSymbolTable(ptr);
+    ptr = ptr->nxtTable;
+  }
 }
 
 //remove the symbol from the current scope
 void removeSymbol(char* symbolName) {
-
+  
 }
 
 int declaredLocally(char* symbolName) {
@@ -94,12 +116,14 @@ int declaredLocally(char* symbolName) {
 
 void openScope() {
   SymbolTable *newSymbolTable = (SymbolTable*)malloc(sizeof(SymbolTable));
-  newSymbolTable->prevInStack = topSymbolTable;
+  newSymbolTable->prevTable = topSymbolTable;
   topSymbolTable = newSymbolTable;
   topSymbolTable->scope = ++maxScope;
+  currentSymbolTable->nxtTable = topSymbolTable;
+  currentSymbolTable = topSymbolTable;
 }
 
 void closeScope() {
-  assert(topSymbolTable->prevInStack != NULL);
-  topSymbolTable = topSymbolTable->prevInStack;
+  assert(topSymbolTable->prevTable != NULL);
+  topSymbolTable = topSymbolTable->prevTable;
 }

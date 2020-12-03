@@ -72,7 +72,8 @@ typedef struct SymbolTableEntry {
 
 typedef struct SymbolTable {
   SymbolTableEntry* hashTable[HASH_TABLE_SIZE];
-  struct SymbolTable *prevInStack;
+  struct SymbolTable *prevTable;
+  struct SymbolTable *nxtTable;
   int scope;
 } SymbolTable;
 
@@ -85,6 +86,6 @@ int declaredLocally(char* symbolName);
 void openScope();
 void closeScope();
 
-void popSymbolTable();
+void printAllTable();
 
 #endif
