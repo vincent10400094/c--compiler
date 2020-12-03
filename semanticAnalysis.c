@@ -64,27 +64,56 @@ typedef enum ErrorMsgKind {
 
 void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKind) {
   g_anyErrorOccur = 1;
-  printf("Error found in line %d\n", node1->linenumber);
-  /*
-    switch(errorMsgKind)
-    {
-    default:
-        printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
-        break;
+  // printf("Error found in line %d\n", node1->linenumber);
+
+  printf(ANSI_COLOR_RED "error: " ANSI_COLOR_RESET);
+
+  switch (errorMsgKind) {
+    case SYMBOL_REDECLARE: {
+      printf("redefinition of '%s'\n", name2);
+      break;
     }
-    */
+    case SYMBOL_UNDECLARED: {
+      printf("use of undeclared identifier '%s'\n", name2);
+      break;
+    }
+    case TOO_FEW_ARGUMENTS: {
+      printf("no matching function for call '%s'\n", name2);
+      break;
+    }
+    case TOO_MANY_ARGUMENTS: {
+      printf("no matching function for call '%s'\n", name2);
+      break;
+    }
+    case PASS_ARRAY_TO_SCALAR: {
+      printf("no matching function for call '%s'\n", name2);
+      break;
+    }
+    case PASS_SCALAR_TO_ARRAY: {
+      printf("no matching function for call '%s'\n", name2);
+      break;
+    }
+    default: {
+      printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
+      break;
+    }
+  }
 }
 
 void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind) {
   g_anyErrorOccur = 1;
   printf("Error found in line %d\n", node->linenumber);
-  /*
-    switch(errorMsgKind)
-    {
-        printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
-        break;
+
+  switch (errorMsgKind) {
+    case ARRAY_SUBSCRIPT_NOT_INT: {
+      printf("array subscript is not an integer\n");
+      break;
     }
-    */
+    default: {
+      printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
+      break;
+    }
+  }
 }
 
 void semanticAnalysis(AST_NODE* root) {
