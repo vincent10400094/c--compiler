@@ -12,6 +12,7 @@ DATA_TYPE getBiggerType(DATA_TYPE dataType1, DATA_TYPE dataType2);
 void processProgramNode(AST_NODE* programNode);
 void processDeclarationNode(AST_NODE* declarationNode);
 void declareIdList(AST_NODE* typeNode, SymbolAttributeKind isVariableOrTypeAttribute, int ignoreArrayFirstDimSize);
+void variableDeclareList(AST_NODE* declarationNode);
 void declareFunction(AST_NODE* returnTypeNode);
 void processDeclDimList(AST_NODE* variableDeclDimList, TypeDescriptor* typeDescriptor, int ignoreFirstDimSize);
 void processTypeNode(AST_NODE* typeNode);
@@ -100,15 +101,108 @@ DATA_TYPE getBiggerType(DATA_TYPE dataType1, DATA_TYPE dataType2) {
 }
 
 void processProgramNode(AST_NODE* programNode) {
+  initializeSymbolTable();
+  openScope();
+  AST_NODE* node = programNode->child;
+  while (node) {
+    if (node->nodeType == VARIABLE_DECL_LIST_NODE) {
+      variableDeclareList(node);
+    } else if (node->nodeType == DECLARATION_NODE) {
+    }
+    node = node->rightSibling;
+  }
 }
 
 void processDeclarationNode(AST_NODE* declarationNode) {
+  AST_NODE* node = declarationNode;
+
+  switch (declarationNode->semantic_value.declSemanticValue.kind) {
+    case VARIABLE_DECL: {
+      declareIdList(declarationNode, VARIABLE_ATTRIBUTE, 0);
+      break;
+    }
+    case TYPE_DECL: {
+      declareIdList(declarationNode, TYPE_ATTRIBUTE, 0);
+      break;
+    }
+    case FUNCTION_DECL: {
+      break;
+    }
+    case FUNCTION_PARAMETER_DECL: {
+      break;
+    }
+    default: {
+      break;
+    }
+  }
 }
 
 void processTypeNode(AST_NODE* idNodeAsType) {
 }
 
 void declareIdList(AST_NODE* declarationNode, SymbolAttributeKind isVariableOrTypeAttribute, int ignoreArrayFirstDimSize) {
+  switch (isVariableOrTypeAttribute) {
+    case VARIABLE_ATTRIBUTE: {
+      AST_NODE* node = declarationNode->child;
+      DATA_TYPE data_type = (strcmp("int", node->semantic_value.identifierSemanticValue.identifierName) == 0 ? INT_TYPE : FLOAT_TYPE);
+      node = node->rightSibling;
+      while (node) {
+        if (declarationNode->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
+          TypeDescriptor type_descriptor;
+          type_descriptor.kind = SCALAR_TYPE_DESCRIPTOR;
+          type_descriptor.properties.dataType = data_type;
+          SymbolAttribute symbol_attr;
+          symbol_attr.attributeKind = VARIABLE_ATTRIBUTE;
+          symbol_attr.attr.typeDescriptor = &type_descriptor;
+          declarationNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(declarationNode->semantic_value.identifierSemanticValue.identifierName, &symbol_attr);
+        } else if (declarationNode->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
+          TypeDescriptor type_descriptor;
+          type_descriptor.kind = ARRAY_TYPE_DESCRIPTOR;
+          int dimension = 0;
+          AST_NODE* dimensionNode = node->child;
+          while (dimensionNode) {
+            processExprNode(dimensionNode);
+            if (dimensionNode->semantic_value.const1->const_type == INTEGERC) {
+              type_descriptor.properties.arrayProperties.sizeInEachDimension[dimension] = dimensionNode->semantic_value.const1->const_u.intval;
+              dimension++;
+            }
+            else {
+              //error : dimension must be int
+            }
+            dimensionNode = dimensionNode->rightSibling;
+          }
+          type_descriptor.properties.arrayProperties.dimension = dimension;
+          SymbolAttribute symbol_attr;
+          symbol_attr.attributeKind = VARIABLE_ATTRIBUTE;
+          symbol_attr.attr.typeDescriptor = &type_descriptor;
+          declarationNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(declarationNode->semantic_value.identifierSemanticValue.identifierName, &symbol_attr);
+        }
+        node = node->rightSibling;
+      }
+      break;
+    }
+    case TYPE_ATTRIBUTE: {
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+}
+
+void variableDeclareList(AST_NODE* declarationNode) {
+  AST_NODE* node = declarationNode->child;
+  while (node) {
+    if (node->nodeType == DECLARATION_NODE) {
+      processDeclarationNode(node);
+    } else {
+      fprintf(stderr, "it should not happen.");
+    }
+    node = node->rightSibling;
+  }
+}
+
+void parameterList() {
 }
 
 void checkAssignOrExpr(AST_NODE* assignOrExprRelatedNode) {
