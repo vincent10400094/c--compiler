@@ -140,6 +140,8 @@ void processProgramNode(AST_NODE* programNode) {
     }
     node = node->rightSibling;
   }
+  // printAllTable();
+  closeScope();
 }
 
 void processDeclarationNode(AST_NODE* declarationNode) {
@@ -176,15 +178,15 @@ void declareIdList(AST_NODE* declarationNode, SymbolAttributeKind isVariableOrTy
       DATA_TYPE data_type = (strcmp("int", node->semantic_value.identifierSemanticValue.identifierName) == 0 ? INT_TYPE : FLOAT_TYPE);
       node = node->rightSibling;
       while (node) {
-        if (declarationNode->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
+        if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
           TypeDescriptor type_descriptor;
           type_descriptor.kind = SCALAR_TYPE_DESCRIPTOR;
           type_descriptor.properties.dataType = data_type;
           SymbolAttribute symbol_attr;
           symbol_attr.attributeKind = VARIABLE_ATTRIBUTE;
           symbol_attr.attr.typeDescriptor = &type_descriptor;
-          declarationNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(declarationNode->semantic_value.identifierSemanticValue.identifierName, &symbol_attr);
-        } else if (declarationNode->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
+          node->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, &symbol_attr);
+        } else if (node->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
           TypeDescriptor type_descriptor;
           type_descriptor.kind = ARRAY_TYPE_DESCRIPTOR;
           int dimension = 0;
@@ -201,10 +203,11 @@ void declareIdList(AST_NODE* declarationNode, SymbolAttributeKind isVariableOrTy
             dimensionNode = dimensionNode->rightSibling;
           }
           type_descriptor.properties.arrayProperties.dimension = dimension;
+          type_descriptor.properties.arrayProperties.elementType = data_type;
           SymbolAttribute symbol_attr;
           symbol_attr.attributeKind = VARIABLE_ATTRIBUTE;
           symbol_attr.attr.typeDescriptor = &type_descriptor;
-          declarationNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(declarationNode->semantic_value.identifierSemanticValue.identifierName, &symbol_attr);
+          node->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, &symbol_attr);
         }
         node = node->rightSibling;
       }
