@@ -61,3 +61,6 @@ parser.tab.h
 parser.tab.c
 parser
 lex.yy.c
+
+# test data
+testdata/
