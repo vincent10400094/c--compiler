@@ -9,6 +9,7 @@
 #include "header.h"
 int linenumber = 1;
 AST_NODE *prog;
+char *srcPath;
 
 extern int g_anyErrorOccur;
 
@@ -905,6 +906,7 @@ int argc;
 char *argv[];
   {
      yyin = fopen(argv[1],"r");
+     srcPath = argv[1];
      yyparse();
      // printGV(prog, NULL);
      

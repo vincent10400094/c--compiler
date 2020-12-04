@@ -3,13 +3,15 @@
 
 #define MAX_ARRAY_DIMENSION 10
 
-#define ANSI_COLOR_RED     "\x1b[31m"
-#define ANSI_COLOR_GREEN   "\x1b[32m"
-#define ANSI_COLOR_YELLOW  "\x1b[33m"
-#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_RED "\x1b[31m"
+#define ANSI_COLOR_GREEN "\x1b[32m"
+#define ANSI_COLOR_YELLOW "\x1b[33m"
+#define ANSI_COLOR_BLUE "\x1b[34m"
 #define ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ANSI_COLOR_CYAN    "\x1b[36m"
-#define ANSI_COLOR_RESET   "\x1b[0m"
+#define ANSI_COLOR_CYAN "\x1b[36m"
+#define ANSI_COLOR_RESET "\x1b[0m"
+
+extern char *srcPath;
 
 typedef enum DATA_TYPE {
   INT_TYPE,
@@ -142,7 +144,7 @@ typedef struct CON_Type {
   } const_u;
 } CON_Type;
 
-struct AST_NODE {
+typedef struct AST_NODE {
   struct AST_NODE *child;
   struct AST_NODE *parent;
   struct AST_NODE *rightSibling;
@@ -157,8 +159,7 @@ struct AST_NODE {
     EXPRSemanticValue exprSemanticValue;
     CON_Type *const1;
   } semantic_value;
-};
-typedef struct AST_NODE AST_NODE;
+} AST_NODE;
 
 AST_NODE *Allocate(AST_TYPE type);
 void semanticAnalysis(AST_NODE *root);
