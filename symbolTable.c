@@ -1,12 +1,12 @@
 #include "symbolTable.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 // This file is for reference only, you are not required to follow the implementation. //
 
-int HASH(char* str) {
+int HASH(char *str) {
   int idx = 0;
   while (*str) {
     idx = idx << 1;
@@ -20,8 +20,8 @@ SymbolTable *topSymbolTable;
 SymbolTable *firstSymbolTable, *currentSymbolTable;
 int maxScope;
 
-SymbolTableEntry* newSymbolTableEntry(int nestingLevel) {
-  SymbolTableEntry* symbolTableEntry = (SymbolTableEntry*)malloc(sizeof(SymbolTableEntry));
+SymbolTableEntry *newSymbolTableEntry(int nestingLevel) {
+  SymbolTableEntry *symbolTableEntry = (SymbolTableEntry *)malloc(sizeof(SymbolTableEntry));
   symbolTableEntry->nextInHashChain = NULL;
   symbolTableEntry->prevInHashChain = NULL;
   symbolTableEntry->attribute = NULL;
@@ -31,14 +31,13 @@ SymbolTableEntry* newSymbolTableEntry(int nestingLevel) {
 
 void initializeSymbolTable() {
   maxScope = 0;
-  topSymbolTable = (SymbolTable*)malloc(sizeof(SymbolTable));
+  topSymbolTable = (SymbolTable *)malloc(sizeof(SymbolTable));
   topSymbolTable->prevTable = NULL;
   topSymbolTable->scope = 0;
   firstSymbolTable = currentSymbolTable = topSymbolTable;
 }
 
 void symbolTableEnd() {
-
 }
 
 SymbolTableEntry *lookupSymbolTable(SymbolTable *table, char *symbolname) {
@@ -53,10 +52,10 @@ SymbolTableEntry *lookupSymbolTable(SymbolTable *table, char *symbolname) {
   return NULL;
 }
 
-SymbolTableEntry *insertSymbolTable(SymbolTable *table, char* symbolName, SymbolAttribute* attribute) {
+SymbolTableEntry *insertSymbolTable(SymbolTable *table, char *symbolName, SymbolAttribute *attribute) {
   assert(attribute != NULL && symbolName != NULL);
   int hashkey = HASH(symbolName);
-  SymbolTableEntry *newEntry = (SymbolTableEntry*)malloc(sizeof(SymbolTableEntry));
+  SymbolTableEntry *newEntry = (SymbolTableEntry *)malloc(sizeof(SymbolTableEntry));
   newEntry->name = strdup(symbolName);
   newEntry->attribute = attribute;
   newEntry->scope = table->scope;
@@ -71,51 +70,108 @@ SymbolTableEntry *insertSymbolTable(SymbolTable *table, char* symbolName, Symbol
   return newEntry;
 }
 
-SymbolTableEntry* retrieveSymbol(char* symbolName) {
+SymbolTableEntry *retrieveSymbol(char *symbolName) {
   SymbolTable *currentSymbolTable = topSymbolTable;
-  SymbolTableEntry* entry;
+  SymbolTableEntry *entry;
   while ((currentSymbolTable != NULL) && ((entry = lookupSymbolTable(currentSymbolTable, symbolName)) == NULL)) {
     currentSymbolTable = currentSymbolTable->prevTable;
   }
   return entry;
 }
 
-SymbolTableEntry* enterSymbol(char* symbolName, SymbolAttribute* attribute) {
+SymbolTableEntry *enterSymbol(char *symbolName, SymbolAttribute *attribute) {
   return insertSymbolTable(topSymbolTable, symbolName, attribute);
 }
 
+void printType(DATA_TYPE type) {
+  switch (type) {
+    case INT_TYPE: {
+      printf("int ");
+    }
+    case FLOAT_TYPE: {
+      printf("float ");
+    }
+    default: {
+      printf("unhandled type ");
+    }
+  }
+}
+
+void printTypeDescriptor(TypeDescriptor *des) {
+  if (des->kind == SCALAR_TYPE_DESCRIPTOR) {
+    printType(des->properties.dataType);
+  } else if (des->kind == ARRAY_TYPE_DESCRIPTOR) {
+    printType(des->properties.arrayProperties.elementType);
+    for (int i = 0; i < des->properties.arrayProperties.dimension; i++) {
+      printf("[%d]", des->properties.arrayProperties.sizeInEachDimension[i]);
+    }
+  }
+}
+
+void printAttribute(SymbolAttribute *attribute) {
+  switch (attribute->attributeKind) {
+    case VARIABLE_ATTRIBUTE: {
+      printf("%s: ", "VARIABLE_ATTRIBUTE");
+      TypeDescriptor *des = attribute->attr.typeDescriptor;
+      printTypeDescriptor(des);
+      break;
+    }
+    case TYPE_ATTRIBUTE: {
+      printf("%s: ", "TYPE_ATTRIBUTE");
+      TypeDescriptor *des = attribute->attr.typeDescriptor;
+      printTypeDescriptor(des);
+      break;
+    }
+    case FUNCTION_SIGNATURE: {
+      printf("%s: ", "FUNCTION_SIGNATURE");
+      printType(attribute->attr.functionSignature->returnType);
+      Parameter *ptr = attribute->attr.functionSignature->parameterList;
+      putchar('(');
+      while (ptr) {
+        printTypeDescriptor(ptr->type);
+        printf("%s, ", ptr->parameterName);
+        ptr = ptr->next;
+      }
+      putchar(')');
+      break;
+    }
+  }
+}
+
 void printSymbolTable(SymbolTable *table) {
-  printf("%-5d", table->scope);
+  printf("%-5d\n", table->scope);
   SymbolTableEntry *symptr;
   for (int i = 0; i < HASH_TABLE_SIZE; i++) {
     symptr = table->hashTable[i];
     while (symptr) {
-      printf("%s ", symptr->name);
+      printf("     %-10s", symptr->name);
+      printAttribute(symptr->attribute);
+      putchar('\n');
       symptr = symptr->nextInHashChain;
     }
   }
-  putchar('\n');
 }
 
 void printAllTable() {
+  printf("%-5s %-10s\n", "Scope", "Id");
   SymbolTable *ptr = firstSymbolTable;
   while (ptr != NULL) {
+    puts("---------------------");
     printSymbolTable(ptr);
     ptr = ptr->nxtTable;
   }
 }
 
 //remove the symbol from the current scope
-void removeSymbol(char* symbolName) {
-  
+void removeSymbol(char *symbolName) {
 }
 
-int declaredLocally(char* symbolName) {
+int declaredLocally(char *symbolName) {
   return (lookupSymbolTable(topSymbolTable, symbolName) != NULL);
 }
 
 void openScope() {
-  SymbolTable *newSymbolTable = (SymbolTable*)malloc(sizeof(SymbolTable));
+  SymbolTable *newSymbolTable = (SymbolTable *)malloc(sizeof(SymbolTable));
   newSymbolTable->prevTable = topSymbolTable;
   topSymbolTable = newSymbolTable;
   topSymbolTable->scope = ++maxScope;
