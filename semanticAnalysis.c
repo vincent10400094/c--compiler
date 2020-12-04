@@ -179,35 +179,47 @@ void declareIdList(AST_NODE* declarationNode, SymbolAttributeKind isVariableOrTy
       node = node->rightSibling;
       while (node) {
         if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
-          TypeDescriptor type_descriptor;
-          type_descriptor.kind = SCALAR_TYPE_DESCRIPTOR;
-          type_descriptor.properties.dataType = data_type;
-          SymbolAttribute symbol_attr;
-          symbol_attr.attributeKind = VARIABLE_ATTRIBUTE;
-          symbol_attr.attr.typeDescriptor = &type_descriptor;
-          node->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, &symbol_attr);
+          TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
+          type_descriptor->kind = SCALAR_TYPE_DESCRIPTOR;
+          type_descriptor->properties.dataType = data_type;
+          SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
+          symbol_attr->attributeKind = VARIABLE_ATTRIBUTE;
+          symbol_attr->attr.typeDescriptor = type_descriptor;
+          if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)) {
+            printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+          } else {
+            node->semantic_value.identifierSemanticValue.symbolTableEntry =
+                enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
+          }
         } else if (node->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
-          TypeDescriptor type_descriptor;
-          type_descriptor.kind = ARRAY_TYPE_DESCRIPTOR;
+          TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
+          type_descriptor->kind = ARRAY_TYPE_DESCRIPTOR;
           int dimension = 0;
           AST_NODE* dimensionNode = node->child;
           while (dimensionNode) {
             processExprNode(dimensionNode);
             if (dimensionNode->semantic_value.const1->const_type == INTEGERC) {
-              type_descriptor.properties.arrayProperties.sizeInEachDimension[dimension] = dimensionNode->semantic_value.const1->const_u.intval;
+              type_descriptor->properties.arrayProperties.sizeInEachDimension[dimension] =
+                  dimensionNode->semantic_value.const1->const_u.intval;
               dimension++;
-            }
-            else {
-              //error : dimension must be int
+              if (dimensionNode->semantic_value.const1->const_u.intval < 0) {
+                printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NEGATIVE);
+              }
+            } else {
+              printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NOT_INT);
             }
             dimensionNode = dimensionNode->rightSibling;
           }
-          type_descriptor.properties.arrayProperties.dimension = dimension;
-          type_descriptor.properties.arrayProperties.elementType = data_type;
-          SymbolAttribute symbol_attr;
-          symbol_attr.attributeKind = VARIABLE_ATTRIBUTE;
-          symbol_attr.attr.typeDescriptor = &type_descriptor;
-          node->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, &symbol_attr);
+          if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)) {
+            printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+          } else {
+            type_descriptor->properties.arrayProperties.dimension = dimension;
+            type_descriptor->properties.arrayProperties.elementType = data_type;
+            SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
+            symbol_attr->attributeKind = VARIABLE_ATTRIBUTE;
+            symbol_attr->attr.typeDescriptor = type_descriptor;
+            node->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
+          }
         }
         node = node->rightSibling;
       }
