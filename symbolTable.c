@@ -135,7 +135,7 @@ void printAttribute(SymbolAttribute *attribute) {
       putchar('(');
       while (ptr) {
         printTypeDescriptor(ptr->type);
-        printf("%s, ", ptr->parameterName);
+        printf(", ");
         ptr = ptr->next;
       }
       putchar(')');
