@@ -1,3 +1,6 @@
+#ifndef __SYMBOLTABLE_H__
+#define __SYMBOLTABLE_H__
+
 #include "symbolTable.h"
 
 #include <assert.h>
@@ -183,3 +186,5 @@ void closeScope() {
   assert(topSymbolTable->prevTable != NULL);
   topSymbolTable = topSymbolTable->prevTable;
 }
+
+#endif
