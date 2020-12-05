@@ -375,7 +375,6 @@ void checkWhileStmt(AST_NODE* whileNode) {
 void checkForStmt(AST_NODE* forNode) {
   AST_NODE* listNode = forNode->child;
   AST_NODE* child;
-  openScope();
   // initialization
   child = listNode->child;
   while (child) {
@@ -396,7 +395,6 @@ void checkForStmt(AST_NODE* forNode) {
     processStmtNode(child);
     child = child->rightSibling;
   }
-  closeScope();
   // for statement
   processStmtNode(listNode->rightSibling);
 }
