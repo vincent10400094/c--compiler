@@ -90,12 +90,15 @@ void printType(DATA_TYPE type) {
   switch (type) {
     case INT_TYPE: {
       printf("int ");
+      break;
     }
     case FLOAT_TYPE: {
       printf("float ");
+      break;
     }
     default: {
       printf("unhandled type ");
+      break;
     }
   }
 }
@@ -156,7 +159,6 @@ void printSymbolTable(SymbolTable *table) {
 }
 
 void printAllTable() {
-  printf("%-5s %-10s\n", "Scope", "Id");
   SymbolTable *ptr = firstSymbolTable;
   while (ptr != NULL) {
     puts("---------------------");
