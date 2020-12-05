@@ -67,6 +67,10 @@ typedef enum ErrorMsgKind {
   INITIALIZER_NOT_CONSTANT
 } ErrorMsgKind;
 
+typedef enum {
+  FLOAT_TO_INT
+} WarningMsgKind;
+
 void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKind) {
   g_anyErrorOccur = 1;
   // printf("Error found in line %d\n", node1->linenumber);
@@ -151,6 +155,21 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind) {
     }
     default: {
       printf("Unhandled error: %d\n", errorMsgKind);
+      break;
+    }
+  }
+}
+
+void printWarningMsg(AST_NODE* node, char* str1, char* str2, WarningMsgKind warningMsgKind) {
+  // printf("Error found in line %d\n", node1->linenumber);
+  printf("%s:%d: ", srcPath, node->linenumber);
+  printf(ANSI_COLOR_MAGENTA "warning: " ANSI_COLOR_RESET);
+  switch (warningMsgKind) {
+    case FLOAT_TO_INT: {
+      printf("implicit conversion turns floating-point number into integer: 'float' to 'int'\n");
+      break;
+    }
+    default: {
       break;
     }
   }
@@ -734,6 +753,13 @@ void processConstValueNode(AST_NODE* constValueNode) {
 }
 
 void checkReturnStmt(AST_NODE* returnNode) {
+  AST_NODE* funtionNameNode = returnNode->parent->parent->leftmostSibling->rightSibling;
+  DATA_TYPE returnType = funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->returnType;
+  int iValue;
+  float fValue;
+  if (returnType == INT_TYPE && getExprOrConstValue(returnNode->child, &iValue, &fValue) == FLOAT_TYPE) {
+    printWarningMsg(returnNode, NULL, NULL, FLOAT_TO_INT);
+  }
 }
 
 void processBlockNode(AST_NODE* blockNode) {
