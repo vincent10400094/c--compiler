@@ -11,10 +11,12 @@ int g_anyErrorOccur = 0;
 DATA_TYPE getBiggerType(DATA_TYPE dataType1, DATA_TYPE dataType2);
 void processProgramNode(AST_NODE* programNode);
 void processDeclarationNode(AST_NODE* declarationNode);
+DATA_TYPE getDeclareType(AST_NODE* node, SymbolTableEntry** type_entry, int* is_typedef_array);
 void declareIdList(AST_NODE* typeNode, SymbolAttributeKind isVariableOrTypeAttribute, int ignoreArrayFirstDimSize);
 void variableDeclareList(AST_NODE* declarationNode);
 void declareFunction(AST_NODE* returnTypeNode);
 void processDeclDimList(AST_NODE* variableDeclDimList, TypeDescriptor* typeDescriptor, int ignoreFirstDimSize);
+void processParameterList(AST_NODE* parameterListNode);
 void processTypeNode(AST_NODE* typeNode);
 void processBlockNode(AST_NODE* blockNode);
 void processStmtNode(AST_NODE* stmtNode);
@@ -67,7 +69,6 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
   g_anyErrorOccur = 1;
   printf("Error found in line %d\n", node1->linenumber);
 
-  printf("%s:%d: ", srcPath, node1->linenumber);
   printf(ANSI_COLOR_RED "error: " ANSI_COLOR_RESET);
 
   switch (errorMsgKind) {
@@ -104,10 +105,7 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
 
 void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind) {
   g_anyErrorOccur = 1;
-  // printf("Error found in line %d\n", node->linenumber);
-
-  printf("%s:%d: ", srcPath, node->linenumber);
-  printf(ANSI_COLOR_RED "error: " ANSI_COLOR_RESET);
+  printf("Error found in line %d\n", node->linenumber);
 
   switch (errorMsgKind) {
     case ARRAY_SUBSCRIPT_NOT_INT: {
@@ -140,6 +138,7 @@ void processProgramNode(AST_NODE* programNode) {
     if (node->nodeType == VARIABLE_DECL_LIST_NODE) {
       variableDeclareList(node);
     } else if (node->nodeType == DECLARATION_NODE) {
+      processDeclarationNode(node);
     }
     node = node->rightSibling;
   }
@@ -174,35 +173,44 @@ void processDeclarationNode(AST_NODE* declarationNode) {
 void processTypeNode(AST_NODE* idNodeAsType) {
 }
 
-void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribute, int ignoreArrayFirstDimSize) {
-  AST_NODE* node = idNode;
+DATA_TYPE getDeclareType(AST_NODE* node, SymbolTableEntry** type_entry, int* is_typedef_array) {
   DATA_TYPE data_type = NONE_TYPE;
-  SymbolTableEntry* type_entry = NULL;
-  int is_type_array = 0;
   if (strcmp("int", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
     data_type = INT_TYPE;
   } else if (strcmp("float", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
     data_type = FLOAT_TYPE;
+  } else if (strcmp("void", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
+    data_type = VOID_TYPE;
   } else {
-    type_entry = retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName);
+    *type_entry = retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName);
     if (type_entry == NULL) {
       printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
     } else {
-      if (type_entry->attribute->attributeKind != TYPE_ATTRIBUTE) {
+      if ((*type_entry)->attribute->attributeKind != TYPE_ATTRIBUTE) {
         printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_IS_NOT_TYPE);
       } else {
-        if (type_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
-          data_type = type_entry->attribute->attr.typeDescriptor->properties.dataType;
+        if ((*type_entry)->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
+          data_type = (*type_entry)->attribute->attr.typeDescriptor->properties.dataType;
         } else {
-          is_type_array = 1;
-          data_type = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
+          (*is_typedef_array) = 1;
+          data_type = (*type_entry)->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
         }
       }
     }
   }
+  return data_type;
+}
+
+void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribute, int ignoreArrayFirstDimSize) {
+  AST_NODE* node = idNode;
+  DATA_TYPE data_type = NONE_TYPE;
+  SymbolTableEntry* type_entry = NULL;
+  int is_typedef_array = 0;
+  data_type = getDeclareType(node, &type_entry, &is_typedef_array);
+
   node = node->rightSibling;
   while (node) {
-    if (is_type_array == 0) {
+    if (is_typedef_array == 0) {
       if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
         TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
         type_descriptor->kind = SCALAR_TYPE_DESCRIPTOR;
@@ -285,9 +293,11 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
           }
           dimensionNode = dimensionNode->rightSibling;
         }
+        
         for (int i = 0; i < type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension; i++) {
           type_descriptor->properties.arrayProperties.sizeInEachDimension[i + dimension] = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension[i];
         }
+        
         dimension += type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
         if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
           printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
@@ -317,11 +327,41 @@ void variableDeclareList(AST_NODE* declarationNode) {
   }
 }
 
-void declareFunction(AST_NODE* declarationNode) {
+void declareFunction(AST_NODE* idNode) {
+  SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
+  symbol_attr->attributeKind = FUNCTION_SIGNATURE;
+  symbol_attr->attr.functionSignature = (FunctionSignature*)malloc(sizeof(FunctionSignature));
+  SymbolTableEntry* type_entry = NULL;
+  int is_typedef_array = 0;
+  symbol_attr->attr.functionSignature->returnType = getDeclareType(idNode, &type_entry, &is_typedef_array);
+  AST_NODE *funtionNameNode = idNode->rightSibling;
+  AST_NODE *parameterListNode = funtionNameNode->rightSibling;
+  if (is_typedef_array) {
+    printErrorMsg(idNode, RETURN_ARRAY);
+  }
+  if (parameterListNode->child) {
+    processParameterList(parameterListNode);
+  }
+  //symbol_attr->attr.functionSignature->parametersCount
+  //symbol_attr->attr.functionSignature->parametersList
+
+  TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
+  type_descriptor->kind = SCALAR_TYPE_DESCRIPTOR;
+  type_descriptor->properties.dataType = data_type;
+  SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
+  symbol_attr->attributeKind = isVariableOrTypeAttribute;
+  symbol_attr->attr.typeDescriptor = type_descriptor;
+  if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
+    printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+  } else {
+    node->semantic_value.identifierSemanticValue.symbolTableEntry =
+        enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
+  }
   
 }
+void processParameterList(AST_NODE* parameterListNode) {
+  
 
-void parameterList() {
 }
 
 void checkAssignOrExpr(AST_NODE* assignOrExprRelatedNode) {
