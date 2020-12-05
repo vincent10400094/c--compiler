@@ -1,3 +1,6 @@
+#ifndef __SYMBOLTABLE_H__
+#define __SYMBOLTABLE_H__
+
 #include "symbolTable.h"
 
 #include <assert.h>
@@ -158,7 +161,6 @@ void printSymbolTable(SymbolTable *table) {
 }
 
 void printAllTable() {
-  printf("%-5s %-10s\n", "Scope", "Id");
   SymbolTable *ptr = firstSymbolTable;
   while (ptr != NULL) {
     puts("---------------------");
@@ -188,3 +190,5 @@ void closeScope() {
   assert(topSymbolTable->prevTable != NULL);
   topSymbolTable = topSymbolTable->prevTable;
 }
+
+#endif

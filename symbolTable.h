@@ -72,8 +72,8 @@ typedef struct SymbolTableEntry {
 
 typedef struct SymbolTable {
   SymbolTableEntry* hashTable[HASH_TABLE_SIZE];
-  struct SymbolTable *prevTable;
-  struct SymbolTable *nxtTable;
+  struct SymbolTable* prevTable;
+  struct SymbolTable* nxtTable;
   int scope;
 } SymbolTable;
 
@@ -87,5 +87,7 @@ void openScope();
 void closeScope();
 
 void printAllTable();
+void printType(DATA_TYPE type);
+void printTypeDescriptor(TypeDescriptor* des);
 
 #endif
