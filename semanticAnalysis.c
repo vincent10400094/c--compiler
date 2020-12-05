@@ -67,6 +67,7 @@ typedef enum ErrorMsgKind {
 
 void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKind) {
   g_anyErrorOccur = 1;
+  // printf("Error found in line %d\n", node1->linenumber);
 
   printf("%s:%d: ", srcPath, node1->linenumber);
   printf(ANSI_COLOR_RED "error: " ANSI_COLOR_RESET);
@@ -100,6 +101,10 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
       printf("unexpected type name '%s': expected expression\n", name2);
       break;
     }
+    case ARRAY_SIZE_NEGATIVE: {
+      printf("'%s' declared as an array with a negative size\n", name2);
+      break;
+    }
     case INCOMPATIBLE_ARRAY_DIMENSION: {
       int dimCount = (int)(*name2);
       printf("array type '");
@@ -120,6 +125,7 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
 
 void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind) {
   g_anyErrorOccur = 1;
+  // printf("Error found in line %d\n", node1->linenumber);
 
   printf("%s:%d: ", srcPath, node->linenumber);
   printf(ANSI_COLOR_RED "error: " ANSI_COLOR_RESET);
