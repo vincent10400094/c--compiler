@@ -509,8 +509,8 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
           }
         }
       }
-    } else {
-      // function call node
+    } else if (actualParameter->nodeType == STMT_NODE) {
+      processStmtNode(actualParameter);
     }
   } else {
     if (actualParameter->nodeType != IDENTIFIER_NODE) {
