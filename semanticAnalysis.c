@@ -39,7 +39,6 @@ DATA_TYPE getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fVa
 void evaluateExprValue(AST_NODE* exprNode);
 void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList, int* parametersCount);
 
-
 typedef enum ErrorMsgKind {
   SYMBOL_IS_NOT_TYPE,
   SYMBOL_REDECLARE,
@@ -116,7 +115,7 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
       for (int i = dimCount; i < des->properties.arrayProperties.dimension; i++) {
         printf("[%d]", des->properties.arrayProperties.sizeInEachDimension[i]);
       }
-      printf("' is not assignable");
+      printf("' is not assignable\n");
       break;
     }
     default: {
@@ -300,7 +299,7 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
       }
       node = node->rightSibling;
     }
-  } 
+  }
 }
 
 void variableDeclareList(AST_NODE* declarationNode) {
@@ -319,14 +318,14 @@ void declareFunction(AST_NODE* idNode) {
   SymbolTableEntry* type_entry = NULL;
   int is_type_array = 0;
   symbol_attr->attr.functionSignature->returnType = getDeclareType(idNode, &type_entry, &is_type_array);
-  AST_NODE *funtionNameNode = idNode->rightSibling;
-  AST_NODE *parameterListNode = funtionNameNode->rightSibling;
+  AST_NODE* funtionNameNode = idNode->rightSibling;
+  AST_NODE* parameterListNode = funtionNameNode->rightSibling;
 
   if (is_type_array) {
     printErrorMsg(idNode, RETURN_ARRAY);
   }
   processParameterList(parameterListNode, &(symbol_attr->attr.functionSignature->parameterList), &(symbol_attr->attr.functionSignature->parametersCount));
-  
+
   if (declaredLocally(funtionNameNode->semantic_value.identifierSemanticValue.identifierName)) {
     printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
   } else {
@@ -334,9 +333,11 @@ void declareFunction(AST_NODE* idNode) {
         enterSymbol(funtionNameNode->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
   }
 
+  processBlockNode(parameterListNode->rightSibling);
 }
+
 void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList, int* parametersCount) {
-  AST_NODE* node = parameterListNode->child; 
+  AST_NODE* node = parameterListNode->child;
   if (!node) {
     (*parameterList) = NULL;
     (*parametersCount) = 0;
@@ -345,11 +346,10 @@ void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList
     while (node) {
       AST_NODE* idNode = node->child;
       (*parametersCount)++;
-      Parameter* parameter = (Parameter *)malloc(sizeof(Parameter));
+      Parameter* parameter = (Parameter*)malloc(sizeof(Parameter));
       if (prev != NULL) {
         prev->next = parameter;
-      }
-      else {
+      } else {
         (*parameterList) = parameter;
       }
       prev = parameter;
@@ -463,6 +463,8 @@ DATA_TYPE getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fVa
 // }
 
 void processExprNode(AST_NODE* exprNode) {
+  if (exprNode->nodeType == CONST_VALUE_NODE || exprNode->nodeType == IDENTIFIER_NODE)
+    return;
   EXPRSemanticValue* semanticValue = &(exprNode->semantic_value.exprSemanticValue);
   if (semanticValue->kind == BINARY_OPERATION) {
     AST_NODE* child1 = exprNode->child;
@@ -675,15 +677,17 @@ void processVariableLValue(AST_NODE* idNode) {
     int dimCount = 0;
     AST_NODE* ptr = idNode->child;
     while (ptr) {
+      processExprNode(ptr);
       dimCount++;
       ptr = ptr->rightSibling;
     }
     if (dimCount > attribute->attr.typeDescriptor->properties.arrayProperties.dimension) {
       char c = (char)dimCount;
-      printErrorMsgSpecial(idNode, &c, INCOMPATIBLE_ARRAY_DIMENSION);
+      printErrorMsg(idNode, NOT_ARRAY);
     }
     if (dimCount < attribute->attr.typeDescriptor->properties.arrayProperties.dimension) {
-      printErrorMsg(idNode, NOT_ARRAY);
+      char c = (char)dimCount;
+      printErrorMsgSpecial(idNode, &c, INCOMPATIBLE_ARRAY_DIMENSION);
     }
     idNode->dataType = attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
   }
@@ -745,6 +749,7 @@ void processBlockNode(AST_NODE* blockNode) {
   if (child->nodeType == VARIABLE_DECL_LIST_NODE) {
     variableDeclareList(child);
     if (child->rightSibling) {
+      child = child->rightSibling;
       assert(child->nodeType == STMT_LIST_NODE);
       processStmtNode(child->child);
     }
@@ -757,43 +762,35 @@ void processBlockNode(AST_NODE* blockNode) {
 
 void processStmtNode(AST_NODE* stmtNode) {
   while (stmtNode) {
-    switch (stmtNode->nodeType) {
-      case NONEMPTY_ASSIGN_EXPR_LIST_NODE: {
-        switch (stmtNode->semantic_value.stmtSemanticValue.kind) {
-          case ASSIGN_STMT: {
-            checkAssignmentStmt(stmtNode);
-            break;
-          }
-          case IF_STMT: {
-            checkIfStmt(stmtNode);
-            break;
-          }
-          case FOR_STMT: {
-            checkForStmt(stmtNode);
-            break;
-          }
-          case FUNCTION_CALL_STMT: {
-            checkFunctionCall(stmtNode);
-            break;
-          }
-          case WHILE_STMT: {
-            checkWhileStmt(stmtNode);
-            break;
-          }
-          case RETURN_STMT: {
-            checkReturnStmt(stmtNode);
-            break;
-          }
+    if (stmtNode->nodeType == STMT_NODE) {
+      switch (stmtNode->semantic_value.stmtSemanticValue.kind) {
+        case ASSIGN_STMT: {
+          checkAssignmentStmt(stmtNode);
+          break;
         }
-        break;
+        case IF_STMT: {
+          checkIfStmt(stmtNode);
+          break;
+        }
+        case FOR_STMT: {
+          checkForStmt(stmtNode);
+          break;
+        }
+        case FUNCTION_CALL_STMT: {
+          checkFunctionCall(stmtNode);
+          break;
+        }
+        case WHILE_STMT: {
+          checkWhileStmt(stmtNode);
+          break;
+        }
+        case RETURN_STMT: {
+          checkReturnStmt(stmtNode);
+          break;
+        }
       }
-      case BLOCK_NODE: {
-        processBlockNode(stmtNode);
-        break;
-      }
-      default: {
-        break;
-      }
+    } else if (stmtNode->nodeType == BLOCK_NODE) {
+      processBlockNode(stmtNode);
     }
     stmtNode = stmtNode->rightSibling;
   }
@@ -807,7 +804,7 @@ int processDeclDimList(AST_NODE* arrayNameNode, TypeDescriptor** typeDescriptor,
   while (dimensionNode) {
     int const_int;
     float const_float;
-    if (dimensionNode->nodeType == NUL_NODE){
+    if (dimensionNode->nodeType == NUL_NODE) {
       (*typeDescriptor)->properties.arrayProperties.sizeInEachDimension[(*dimension)] = -1;
       (*dimension)++;
     } else {
@@ -826,7 +823,6 @@ int processDeclDimList(AST_NODE* arrayNameNode, TypeDescriptor** typeDescriptor,
         // can't evaluate expression's value
         return 0;
       }
-      
     }
     dimensionNode = dimensionNode->rightSibling;
   }

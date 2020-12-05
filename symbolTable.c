@@ -105,9 +105,7 @@ void printType(DATA_TYPE type) {
 
 void printTypeDescriptor(TypeDescriptor *des) {
   if (des->kind == SCALAR_TYPE_DESCRIPTOR) {
-    printf("hi");
     printType(des->properties.dataType);
-    printf("hi");
   } else if (des->kind == ARRAY_TYPE_DESCRIPTOR) {
     printType(des->properties.arrayProperties.elementType);
     for (int i = 0; i < des->properties.arrayProperties.dimension; i++) {
@@ -119,19 +117,19 @@ void printTypeDescriptor(TypeDescriptor *des) {
 void printAttribute(SymbolAttribute *attribute) {
   switch (attribute->attributeKind) {
     case VARIABLE_ATTRIBUTE: {
-      printf("%s: ", "VARIABLE_ATTRIBUTE");
+      printf("%s: ", "var");
       TypeDescriptor *des = attribute->attr.typeDescriptor;
       printTypeDescriptor(des);
       break;
     }
     case TYPE_ATTRIBUTE: {
-      printf("%s: ", "TYPE_ATTRIBUTE");
+      printf("%s: ", "type");
       TypeDescriptor *des = attribute->attr.typeDescriptor;
       printTypeDescriptor(des);
       break;
     }
     case FUNCTION_SIGNATURE: {
-      printf("%s: ", "FUNCTION_SIGNATURE");
+      printf("%s: ", "func");
       printType(attribute->attr.functionSignature->returnType);
       Parameter *ptr = attribute->attr.functionSignature->parameterList;
       putchar('(');
