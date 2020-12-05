@@ -87,19 +87,24 @@ void printType(DATA_TYPE type) {
   switch (type) {
     case INT_TYPE: {
       printf("int ");
+      break;
     }
     case FLOAT_TYPE: {
       printf("float ");
+      break;
     }
     default: {
       printf("unhandled type ");
+      break;
     }
   }
 }
 
 void printTypeDescriptor(TypeDescriptor *des) {
   if (des->kind == SCALAR_TYPE_DESCRIPTOR) {
+    printf("hi");
     printType(des->properties.dataType);
+    printf("hi");
   } else if (des->kind == ARRAY_TYPE_DESCRIPTOR) {
     printType(des->properties.arrayProperties.elementType);
     for (int i = 0; i < des->properties.arrayProperties.dimension; i++) {
