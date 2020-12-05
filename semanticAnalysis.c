@@ -118,6 +118,10 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
       printf("' is not assignable\n");
       break;
     }
+    case PARAMETER_TYPE_UNMATCH: {
+      printf("no matching function for call '%s'\n", name2);
+      break;
+    }
     default: {
       printf("Unhandled error: %d\n", errorMsgKind);
       break;
@@ -128,7 +132,6 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
 void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind) {
   g_anyErrorOccur = 1;
   // printf("Error found in line %d\n", node1->linenumber);
-
   printf("%s:%d: ", srcPath, node->linenumber);
   printf(ANSI_COLOR_RED "error: " ANSI_COLOR_RESET);
 
@@ -239,7 +242,7 @@ DATA_TYPE getDeclareType(AST_NODE* node, SymbolTableEntry** type_entry, int* is_
 
 int processIdNode(AST_NODE* node, TypeDescriptor** type_descriptor, int is_type_array, SymbolTableEntry* type_entry) {
   if (is_type_array == 0) {
-    if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
+    if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID || node->semantic_value.identifierSemanticValue.kind == WITH_INIT_ID) {
       (*type_descriptor)->kind = SCALAR_TYPE_DESCRIPTOR;
     } else if (node->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
       (*type_descriptor)->kind = ARRAY_TYPE_DESCRIPTOR;
@@ -351,6 +354,7 @@ void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList
         (*parameterList) = parameter;
       }
       prev = parameter;
+      parameter->next = NULL;
       parameter->parameterName = idNode->rightSibling->semantic_value.identifierSemanticValue.identifierName;
       SymbolTableEntry* type_entry;
       int is_type_array = 0;
@@ -421,9 +425,116 @@ void checkWriteFunction(AST_NODE* functionCallNode) {
 }
 
 void checkFunctionCall(AST_NODE* functionCallNode) {
+  AST_NODE* functionIdNode = functionCallNode->child;
+  AST_NODE* parameterListNode = functionIdNode->rightSibling;
+  SymbolTableEntry* table_entry = retrieveSymbol(functionIdNode->semantic_value.identifierSemanticValue.identifierName);
+  if (table_entry == NULL) {
+    printErrorMsgSpecial(functionIdNode, functionIdNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
+  } else if (table_entry->attribute->attributeKind != FUNCTION_SIGNATURE) {
+    printErrorMsgSpecial(functionIdNode, functionIdNode->semantic_value.identifierSemanticValue.identifierName, NOT_FUNCTION_NAME);
+  } else {
+    AST_NODE* parameterNode = parameterListNode->child;
+    Parameter* parameter = table_entry->attribute->attr.functionSignature->parameterList;
+    while (parameter) {
+      if (parameterNode == NULL || parameterNode->nodeType == NUL_NODE) {
+        printErrorMsgSpecial(parameterListNode, functionIdNode->semantic_value.identifierSemanticValue.identifierName, TOO_FEW_ARGUMENTS);
+        break;
+      }
+      checkParameterPassing(parameter, parameterNode);
+      parameterNode = parameterNode->rightSibling;
+      parameter = parameter->next;
+    }
+    if (parameterNode && parameterNode->nodeType != NUL_NODE) {
+      printErrorMsgSpecial(parameterListNode, functionIdNode->semantic_value.identifierSemanticValue.identifierName, TOO_MANY_ARGUMENTS);
+    }
+  }
 }
 
 void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter) {
+  if (formalParameter->type->kind == SCALAR_TYPE_DESCRIPTOR) {
+    if (actualParameter->nodeType == EXPR_NODE || actualParameter->nodeType == CONST_VALUE_NODE) {
+      int int_value;
+      float float_value;
+      DATA_TYPE type = getExprOrConstValue(actualParameter, &int_value, &float_value);
+    } else if (actualParameter->nodeType == IDENTIFIER_NODE) {
+      SymbolTableEntry* table_entry = retrieveSymbol(actualParameter->semantic_value.identifierSemanticValue.identifierName);
+      if (actualParameter->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
+        if (table_entry == NULL) {
+          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
+        } else if (table_entry->attribute->attributeKind == FUNCTION_SIGNATURE) {
+          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, IS_FUNCTION_NOT_VARIABLE);
+        } else if (table_entry->attribute->attributeKind == TYPE_ATTRIBUTE) {
+          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, IS_TYPE_NOT_VARIABLE);
+        } else if (table_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
+          printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PASS_ARRAY_TO_SCALAR);
+        }
+      } else if (actualParameter->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
+        if (table_entry == NULL) {
+          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
+        } else if (table_entry->attribute->attributeKind != VARIABLE_ATTRIBUTE ||
+                   table_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
+          printErrorMsg(actualParameter, NOT_ARRAY);
+        } else {
+          TypeDescriptor* typeDescriptor;
+          int dimCount = 0;
+          AST_NODE* ptr = actualParameter->child;
+          while (ptr) {
+            processExprNode(ptr);
+            dimCount++;
+            ptr = ptr->rightSibling;
+          }
+          if (table_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension > dimCount) {
+            printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PASS_ARRAY_TO_SCALAR);
+          } else if (table_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension < dimCount) {
+            printErrorMsg(actualParameter, NOT_ARRAY);
+          }
+        }
+      }
+    } else {
+      // function call node
+    }
+  } else {
+    if (actualParameter->nodeType != IDENTIFIER_NODE) {
+      printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PASS_SCALAR_TO_ARRAY);
+    } else {
+      SymbolTableEntry* table_entry = retrieveSymbol(actualParameter->semantic_value.identifierSemanticValue.identifierName);
+      if (actualParameter->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
+        if (table_entry == NULL) {
+          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
+        } else if (table_entry->attribute->attributeKind == FUNCTION_SIGNATURE) {
+          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, IS_FUNCTION_NOT_VARIABLE);
+        } else if (table_entry->attribute->attributeKind == TYPE_ATTRIBUTE) {
+          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, IS_TYPE_NOT_VARIABLE);
+        } else if (table_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
+          printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PASS_SCALAR_TO_ARRAY);
+        } else if (table_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension != formalParameter->type->properties.arrayProperties.dimension) {
+          printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PARAMETER_TYPE_UNMATCH);
+        }
+      } else if (actualParameter->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
+        if (table_entry == NULL) {
+          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
+        } else if (table_entry->attribute->attributeKind != VARIABLE_ATTRIBUTE ||
+                   table_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
+          printErrorMsg(actualParameter, NOT_ARRAY);
+        } else {
+          int dimCount = 0;
+          AST_NODE* ptr = actualParameter->child;
+          while (ptr) {
+            processExprNode(ptr);
+            dimCount++;
+            ptr = ptr->rightSibling;
+          }
+          if (table_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension >= dimCount) {
+            if (table_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension - dimCount != formalParameter->type->properties.arrayProperties.dimension) {
+              printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PARAMETER_TYPE_UNMATCH);
+            }
+          } else if (table_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension < dimCount) {
+            printErrorMsg(actualParameter, NOT_ARRAY);
+          }
+        }
+      }
+    }
+  }
 }
 
 void processExprRelatedNode(AST_NODE* exprRelatedNode) {
