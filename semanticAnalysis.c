@@ -246,16 +246,17 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
         while (dimensionNode) {
           int const_int;
           float const_float;
-          getExprOrConstValue(dimensionNode, &const_int, &const_float);
-          if (dimensionNode->semantic_value.const1->const_type == INTEGERC) {
-            type_descriptor->properties.arrayProperties.sizeInEachDimension[dimension] =
-                dimensionNode->semantic_value.const1->const_u.intval;
+          DATA_TYPE type = getExprOrConstValue(dimensionNode, &const_int, &const_float);
+          if (type == INT_TYPE) {
+            type_descriptor->properties.arrayProperties.sizeInEachDimension[dimension] = const_int;
             dimension++;
-            if (dimensionNode->semantic_value.const1->const_u.intval < 0) {
+            if (const_int < 0) {
               printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NEGATIVE);
             }
-          } else {
+          } else if (type == FLOAT_TYPE) {
             printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NOT_INT);
+          } else {
+            // can't evaluate expression's value
           }
           dimensionNode = dimensionNode->rightSibling;
         }
@@ -296,10 +297,10 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
           float const_float;
           DATA_TYPE type = getExprOrConstValue(dimensionNode, &const_int, &const_float);
           if (type == INT_TYPE) {
-            type_descriptor->properties.arrayProperties.sizeInEachDimension[dimension] =
-                dimensionNode->semantic_value.const1->const_u.intval;
+            printf("%d\n", const_int);
+            type_descriptor->properties.arrayProperties.sizeInEachDimension[dimension] = const_int;
             dimension++;
-            if (dimensionNode->semantic_value.const1->const_u.intval < 0) {
+            if (const_int < 0) {
               printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NEGATIVE);
             }
           } else if (type == FLOAT_TYPE) {
@@ -387,7 +388,6 @@ DATA_TYPE getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fVa
   }
   assert(exprOrConstNode->nodeType == EXPR_NODE);
   processExprNode(exprOrConstNode);
-  puts("process finish");
   if (!exprOrConstNode->semantic_value.exprSemanticValue.isConstEval) {
     return NONE_TYPE;
   }
