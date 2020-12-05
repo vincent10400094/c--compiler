@@ -39,7 +39,6 @@ DATA_TYPE getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fVa
 void evaluateExprValue(AST_NODE* exprNode);
 void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList, int* parametersCount);
 
-
 typedef enum ErrorMsgKind {
   SYMBOL_IS_NOT_TYPE,
   SYMBOL_REDECLARE,
@@ -300,7 +299,7 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
       }
       node = node->rightSibling;
     }
-  } 
+  }
 }
 
 void variableDeclareList(AST_NODE* declarationNode) {
@@ -319,8 +318,8 @@ void declareFunction(AST_NODE* idNode) {
   SymbolTableEntry* type_entry = NULL;
   int is_type_array = 0;
   symbol_attr->attr.functionSignature->returnType = getDeclareType(idNode, &type_entry, &is_type_array);
-  AST_NODE *funtionNameNode = idNode->rightSibling;
-  AST_NODE *parameterListNode = funtionNameNode->rightSibling;
+  AST_NODE* funtionNameNode = idNode->rightSibling;
+  AST_NODE* parameterListNode = funtionNameNode->rightSibling;
 
   if (is_type_array) {
     printErrorMsg(idNode, RETURN_ARRAY);
@@ -333,10 +332,9 @@ void declareFunction(AST_NODE* idNode) {
     funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry =
         enterSymbol(funtionNameNode->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
   }
-
 }
 void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList, int* parametersCount) {
-  AST_NODE* node = parameterListNode->child; 
+  AST_NODE* node = parameterListNode->child;
   if (!node) {
     (*parameterList) = NULL;
     (*parametersCount) = 0;
@@ -345,11 +343,10 @@ void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList
     while (node) {
       AST_NODE* idNode = node->child;
       (*parametersCount)++;
-      Parameter* parameter = (Parameter *)malloc(sizeof(Parameter));
+      Parameter* parameter = (Parameter*)malloc(sizeof(Parameter));
       if (prev != NULL) {
         prev->next = parameter;
-      }
-      else {
+      } else {
         (*parameterList) = parameter;
       }
       prev = parameter;
@@ -807,7 +804,7 @@ int processDeclDimList(AST_NODE* arrayNameNode, TypeDescriptor** typeDescriptor,
   while (dimensionNode) {
     int const_int;
     float const_float;
-    if (dimensionNode->nodeType == NUL_NODE){
+    if (dimensionNode->nodeType == NUL_NODE) {
       (*typeDescriptor)->properties.arrayProperties.sizeInEachDimension[(*dimension)] = -1;
       (*dimension)++;
     } else {
@@ -826,7 +823,6 @@ int processDeclDimList(AST_NODE* arrayNameNode, TypeDescriptor** typeDescriptor,
         // can't evaluate expression's value
         return 0;
       }
-      
     }
     dimensionNode = dimensionNode->rightSibling;
   }
