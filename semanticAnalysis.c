@@ -67,7 +67,7 @@ typedef enum ErrorMsgKind {
 
 void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKind) {
   g_anyErrorOccur = 1;
-  // printf("Error found in line %d\n", node1->linenumber);
+  printf("Error found in line %d\n", node1->linenumber);
 
   printf("%s:%d: ", srcPath, node1->linenumber);
   printf(ANSI_COLOR_RED "error: " ANSI_COLOR_RESET);
@@ -159,7 +159,6 @@ DATA_TYPE getBiggerType(DATA_TYPE dataType1, DATA_TYPE dataType2) {
 
 void processProgramNode(AST_NODE* programNode) {
   initializeSymbolTable();
-  openScope();
   AST_NODE* node = programNode->child;
   while (node) {
     if (node->nodeType == VARIABLE_DECL_LIST_NODE) {
@@ -168,8 +167,7 @@ void processProgramNode(AST_NODE* programNode) {
     }
     node = node->rightSibling;
   }
-  // printAllTable();
-  closeScope();
+  printAllTable();
 }
 
 void processDeclarationNode(AST_NODE* declarationNode) {
@@ -177,14 +175,15 @@ void processDeclarationNode(AST_NODE* declarationNode) {
 
   switch (declarationNode->semantic_value.declSemanticValue.kind) {
     case VARIABLE_DECL: {
-      declareIdList(declarationNode, VARIABLE_ATTRIBUTE, 0);
+      declareIdList(declarationNode->child, VARIABLE_ATTRIBUTE, 0);
       break;
     }
     case TYPE_DECL: {
-      declareIdList(declarationNode, TYPE_ATTRIBUTE, 0);
+      declareIdList(declarationNode->child, TYPE_ATTRIBUTE, 0);
       break;
     }
     case FUNCTION_DECL: {
+      declareFunction(declarationNode->child);
       break;
     }
     case FUNCTION_PARAMETER_DECL: {
@@ -199,66 +198,134 @@ void processDeclarationNode(AST_NODE* declarationNode) {
 void processTypeNode(AST_NODE* idNodeAsType) {
 }
 
-void declareIdList(AST_NODE* declarationNode, SymbolAttributeKind isVariableOrTypeAttribute, int ignoreArrayFirstDimSize) {
-  switch (isVariableOrTypeAttribute) {
-    case VARIABLE_ATTRIBUTE: {
-      AST_NODE* node = declarationNode->child;
-      DATA_TYPE data_type = (strcmp("int", node->semantic_value.identifierSemanticValue.identifierName) == 0 ? INT_TYPE : FLOAT_TYPE);
-      node = node->rightSibling;
-      while (node) {
-        if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
-          TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
-          type_descriptor->kind = SCALAR_TYPE_DESCRIPTOR;
-          type_descriptor->properties.dataType = data_type;
-          SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
-          symbol_attr->attributeKind = VARIABLE_ATTRIBUTE;
-          symbol_attr->attr.typeDescriptor = type_descriptor;
-          if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)) {
-            printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
-          } else {
-            node->semantic_value.identifierSemanticValue.symbolTableEntry =
-                enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
-          }
-        } else if (node->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
-          TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
-          type_descriptor->kind = ARRAY_TYPE_DESCRIPTOR;
-          int dimension = 0;
-          AST_NODE* dimensionNode = node->child;
-          while (dimensionNode) {
-            processExprNode(dimensionNode);
-            if (dimensionNode->semantic_value.const1->const_type == INTEGERC) {
-              type_descriptor->properties.arrayProperties.sizeInEachDimension[dimension] =
-                  dimensionNode->semantic_value.const1->const_u.intval;
-              dimension++;
-              if (dimensionNode->semantic_value.const1->const_u.intval < 0) {
-                printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NEGATIVE);
-              }
-            } else {
-              printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NOT_INT);
-            }
-            dimensionNode = dimensionNode->rightSibling;
-          }
-          if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)) {
-            printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
-          } else {
-            type_descriptor->properties.arrayProperties.dimension = dimension;
-            type_descriptor->properties.arrayProperties.elementType = data_type;
-            SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
-            symbol_attr->attributeKind = VARIABLE_ATTRIBUTE;
-            symbol_attr->attr.typeDescriptor = type_descriptor;
-            node->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
-          }
+void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribute, int ignoreArrayFirstDimSize) {
+  AST_NODE* node = idNode;
+  DATA_TYPE data_type = NONE_TYPE;
+  SymbolTableEntry* type_entry = NULL;
+  int is_type_array = 0;
+  if (strcmp("int", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
+    data_type = INT_TYPE;
+  } else if (strcmp("float", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
+    data_type = FLOAT_TYPE;
+  } else {
+    type_entry = retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName);
+    if (type_entry == NULL) {
+      printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
+    } else {
+      if (type_entry->attribute->attributeKind != TYPE_ATTRIBUTE) {
+        printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_IS_NOT_TYPE);
+      } else {
+        if (type_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
+          data_type = type_entry->attribute->attr.typeDescriptor->properties.dataType;
+        } else {
+          is_type_array = 1;
+          data_type = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
         }
-        node = node->rightSibling;
       }
-      break;
     }
-    case TYPE_ATTRIBUTE: {
-      break;
+  }
+  node = node->rightSibling;
+  while (node) {
+    if (is_type_array == 0) {
+      if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
+        TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
+        type_descriptor->kind = SCALAR_TYPE_DESCRIPTOR;
+        type_descriptor->properties.dataType = data_type;
+        SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
+        symbol_attr->attributeKind = isVariableOrTypeAttribute;
+        symbol_attr->attr.typeDescriptor = type_descriptor;
+        if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
+          printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+        } else {
+          node->semantic_value.identifierSemanticValue.symbolTableEntry =
+              enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
+        }
+      } else if (node->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
+        TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
+        type_descriptor->kind = ARRAY_TYPE_DESCRIPTOR;
+        int dimension = 0;
+        AST_NODE* dimensionNode = node->child;
+        while (dimensionNode) {
+          int const_int;
+          float const_float;
+          getExprOrConstValue(dimensionNode, &const_int, &const_float);
+          if (dimensionNode->semantic_value.const1->const_type == INTEGERC) {
+            type_descriptor->properties.arrayProperties.sizeInEachDimension[dimension] =
+                dimensionNode->semantic_value.const1->const_u.intval;
+            dimension++;
+            if (dimensionNode->semantic_value.const1->const_u.intval < 0) {
+              printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NEGATIVE);
+            }
+          } else {
+            printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NOT_INT);
+          }
+          dimensionNode = dimensionNode->rightSibling;
+        }
+        if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
+          printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+        } else {
+          type_descriptor->properties.arrayProperties.dimension = dimension;
+          type_descriptor->properties.arrayProperties.elementType = data_type;
+          SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
+          symbol_attr->attributeKind = isVariableOrTypeAttribute;
+          symbol_attr->attr.typeDescriptor = type_descriptor;
+          node->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
+        }
+      }
+    } else {
+      TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
+      type_descriptor->kind = ARRAY_TYPE_DESCRIPTOR;
+      if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
+        SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
+        symbol_attr->attributeKind = isVariableOrTypeAttribute;
+        symbol_attr->attr.typeDescriptor = type_descriptor;
+        int dimension = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
+        for (int i = 0; i < dimension; i++) {
+          type_descriptor->properties.arrayProperties.sizeInEachDimension[i] = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension[i];
+        }
+        type_descriptor->properties.arrayProperties.dimension = dimension;
+        if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
+          printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+        } else {
+          node->semantic_value.identifierSemanticValue.symbolTableEntry =
+              enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
+        }
+      } else if (node->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
+        AST_NODE* dimensionNode = node->child;
+        int dimension = 0;
+        while (dimensionNode) {
+          int const_int;
+          float const_float;
+          getExprOrConstValue(dimensionNode, &const_int, &const_float);
+          if (dimensionNode->semantic_value.const1->const_type == INTEGERC) {
+            type_descriptor->properties.arrayProperties.sizeInEachDimension[dimension] =
+                dimensionNode->semantic_value.const1->const_u.intval;
+            dimension++;
+            if (dimensionNode->semantic_value.const1->const_u.intval < 0) {
+              printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NEGATIVE);
+            }
+          } else {
+            printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NOT_INT);
+          }
+          dimensionNode = dimensionNode->rightSibling;
+        }
+        for (int i = 0; i < type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension; i++) {
+          type_descriptor->properties.arrayProperties.sizeInEachDimension[i + dimension] = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension[i];
+        }
+        dimension += type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
+        if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
+          printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+        } else {
+          type_descriptor->properties.arrayProperties.dimension = dimension;
+          type_descriptor->properties.arrayProperties.elementType = data_type;
+          SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
+          symbol_attr->attributeKind = isVariableOrTypeAttribute;
+          symbol_attr->attr.typeDescriptor = type_descriptor;
+          node->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
+        }
+      }
     }
-    default: {
-      break;
-    }
+    node = node->rightSibling;
   }
 }
 
@@ -273,6 +340,10 @@ void variableDeclareList(AST_NODE* declarationNode) {
     }
     node = node->rightSibling;
   }
+}
+
+void declareFunction(AST_NODE* declarationNode) {
+  
 }
 
 void parameterList() {
@@ -423,7 +494,4 @@ void processGeneralNode(AST_NODE* node) {
 }
 
 void processDeclDimList(AST_NODE* idNode, TypeDescriptor* typeDescriptor, int ignoreFirstDimSize) {
-}
-
-void declareFunction(AST_NODE* declarationNode) {
 }
