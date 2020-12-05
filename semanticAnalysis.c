@@ -325,14 +325,12 @@ void declareFunction(AST_NODE* idNode) {
     printErrorMsg(idNode, RETURN_ARRAY);
   }
   processParameterList(parameterListNode, &(symbol_attr->attr.functionSignature->parameterList), &(symbol_attr->attr.functionSignature->parametersCount));
-
   if (declaredLocally(funtionNameNode->semantic_value.identifierSemanticValue.identifierName)) {
     printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
   } else {
     funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry =
         enterSymbol(funtionNameNode->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
   }
-
   processBlockNode(parameterListNode->rightSibling);
 }
 
