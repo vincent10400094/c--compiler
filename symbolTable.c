@@ -105,7 +105,9 @@ void printType(DATA_TYPE type) {
 
 void printTypeDescriptor(TypeDescriptor *des) {
   if (des->kind == SCALAR_TYPE_DESCRIPTOR) {
+    printf("hi");
     printType(des->properties.dataType);
+    printf("hi");
   } else if (des->kind == ARRAY_TYPE_DESCRIPTOR) {
     printType(des->properties.arrayProperties.elementType);
     for (int i = 0; i < des->properties.arrayProperties.dimension; i++) {
