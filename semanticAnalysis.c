@@ -1,4 +1,3 @@
-
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +15,7 @@ void processDeclarationNode(AST_NODE* declarationNode);
 void declareIdList(AST_NODE* typeNode, SymbolAttributeKind isVariableOrTypeAttribute, int ignoreArrayFirstDimSize);
 void variableDeclareList(AST_NODE* declarationNode);
 void declareFunction(AST_NODE* returnTypeNode);
+int processIdNode(AST_NODE* node, TypeDescriptor** type_descriptor, int is_type_array, SymbolTableEntry* type_entry);
 int processDeclDimList(AST_NODE* arrayNameNode, TypeDescriptor** typeDescriptor, int* dimension, int ignoreFirstDimSize);
 void processTypeNode(AST_NODE* typeNode);
 void processBlockNode(AST_NODE* blockNode);
@@ -38,6 +38,8 @@ void processVariableValue(AST_NODE* idNode);
 void processConstValueNode(AST_NODE* constValueNode);
 DATA_TYPE getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fValue);
 void evaluateExprValue(AST_NODE* exprNode);
+void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList, int* parametersCount);
+
 
 typedef enum ErrorMsgKind {
   SYMBOL_IS_NOT_TYPE,
@@ -133,11 +135,15 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind) {
 
   switch (errorMsgKind) {
     case ARRAY_SUBSCRIPT_NOT_INT: {
-      printf("array subscript is not an integer\n");
+      puts("array subscript is not an integer");
       break;
     }
     case NOT_ARRAY: {
-      printf("subscripted value is not an array, pointer, or vector\n");
+      puts("subscripted value is not an array, pointer, or vector");
+      break;
+    }
+    case ARRAY_SIZE_NOT_INT: {
+      puts("size of array has non-integer type 'double'");
       break;
     }
     default: {
@@ -169,6 +175,7 @@ void processProgramNode(AST_NODE* programNode) {
     if (node->nodeType == VARIABLE_DECL_LIST_NODE) {
       variableDeclareList(node);
     } else if (node->nodeType == DECLARATION_NODE) {
+      processDeclarationNode(node);
     }
     node = node->rightSibling;
   }
@@ -176,8 +183,6 @@ void processProgramNode(AST_NODE* programNode) {
 }
 
 void processDeclarationNode(AST_NODE* declarationNode) {
-  AST_NODE* node = declarationNode;
-
   switch (declarationNode->semantic_value.declSemanticValue.kind) {
     case VARIABLE_DECL: {
       declareIdList(declarationNode->child, VARIABLE_ATTRIBUTE, 0);
@@ -203,142 +208,159 @@ void processDeclarationNode(AST_NODE* declarationNode) {
 void processTypeNode(AST_NODE* idNodeAsType) {
 }
 
+DATA_TYPE getDeclareType(AST_NODE* node, SymbolTableEntry** type_entry, int* is_typedef_array) {
+  DATA_TYPE data_type = NONE_TYPE;
+  if (strcmp("int", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
+    data_type = INT_TYPE;
+  } else if (strcmp("float", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
+    data_type = FLOAT_TYPE;
+  } else if (strcmp("void", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
+    data_type = VOID_TYPE;
+  } else {
+    *type_entry = retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName);
+    if (type_entry == NULL) {
+      printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
+    } else {
+      if ((*type_entry)->attribute->attributeKind != TYPE_ATTRIBUTE) {
+        printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_IS_NOT_TYPE);
+      } else {
+        if ((*type_entry)->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
+          data_type = (*type_entry)->attribute->attr.typeDescriptor->properties.dataType;
+        } else {
+          (*is_typedef_array) = 1;
+          data_type = (*type_entry)->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
+        }
+      }
+    }
+  }
+  return data_type;
+}
+
+int processIdNode(AST_NODE* node, TypeDescriptor** type_descriptor, int is_type_array, SymbolTableEntry* type_entry) {
+  if (is_type_array == 0) {
+    if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
+      (*type_descriptor)->kind = SCALAR_TYPE_DESCRIPTOR;
+    } else if (node->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
+      (*type_descriptor)->kind = ARRAY_TYPE_DESCRIPTOR;
+      int dimension = 0;
+      int array_declaration = processDeclDimList(node, type_descriptor, &dimension, 0);
+      if (array_declaration != 0) {
+        (*type_descriptor)->properties.arrayProperties.dimension = dimension;
+      } else {
+        return 0;
+      }
+    }
+  } else {
+    (*type_descriptor)->kind = ARRAY_TYPE_DESCRIPTOR;
+    if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
+      int dimension = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
+      for (int i = 0; i < dimension; i++) {
+        (*type_descriptor)->properties.arrayProperties.sizeInEachDimension[i] = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension[i];
+      }
+      (*type_descriptor)->properties.arrayProperties.dimension = dimension;
+    } else if (node->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
+      int dimension = 0;
+      int array_declaration = processDeclDimList(node, type_descriptor, &dimension, 0);
+      for (int i = 0; i < type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension; i++) {
+        (*type_descriptor)->properties.arrayProperties.sizeInEachDimension[i + dimension] = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension[i];
+      }
+      dimension += type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
+      if (array_declaration != 0) {
+        (*type_descriptor)->properties.arrayProperties.dimension = dimension;
+      } else {
+        return 0;
+      }
+    }
+  }
+  return 1;
+}
+
 void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribute, int ignoreArrayFirstDimSize) {
   AST_NODE* node = idNode;
   DATA_TYPE data_type = NONE_TYPE;
   SymbolTableEntry* type_entry = NULL;
   int is_type_array = 0;
-  if (strcmp("int", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
-    data_type = INT_TYPE;
-  } else if (strcmp("float", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
-    data_type = FLOAT_TYPE;
-  } else {
-    type_entry = retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName);
-    if (type_entry == NULL) {
-      printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
-    } else {
-      if (type_entry->attribute->attributeKind != TYPE_ATTRIBUTE) {
-        printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_IS_NOT_TYPE);
-      } else {
-        if (type_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
-          data_type = type_entry->attribute->attr.typeDescriptor->properties.dataType;
-        } else {
-          is_type_array = 1;
-          data_type = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
-        }
-      }
-    }
-  }
+  data_type = getDeclareType(node, &type_entry, &is_type_array);
   node = node->rightSibling;
   while (node) {
-    if (is_type_array == 0) {
-      if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
-        TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
-        type_descriptor->kind = SCALAR_TYPE_DESCRIPTOR;
-        type_descriptor->properties.dataType = data_type;
-        SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
-        symbol_attr->attributeKind = isVariableOrTypeAttribute;
-        symbol_attr->attr.typeDescriptor = type_descriptor;
-        if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
-          printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
-        } else {
-          node->semantic_value.identifierSemanticValue.symbolTableEntry =
-              enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
-        }
-      } else if (node->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
-        TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
-        type_descriptor->kind = ARRAY_TYPE_DESCRIPTOR;
-        int dimension = 0;
-        int array_declaration = processDeclDimList(node, &type_descriptor, &dimension, 0);
-        if (array_declaration != 0) {
-          if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
-            printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
-          } else {
-            type_descriptor->properties.arrayProperties.dimension = dimension;
-            type_descriptor->properties.arrayProperties.elementType = data_type;
-            SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
-            symbol_attr->attributeKind = isVariableOrTypeAttribute;
-            symbol_attr->attr.typeDescriptor = type_descriptor;
-            node->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
-          }
-        }
+    TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
+    type_descriptor->properties.dataType = data_type;
+    int cheak_id_node = processIdNode(node, &type_descriptor, is_type_array, type_entry);
+    if (cheak_id_node) {
+      SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
+      symbol_attr->attributeKind = isVariableOrTypeAttribute;
+      symbol_attr->attr.typeDescriptor = type_descriptor;
+      if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
+        printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+      } else {
+        node->semantic_value.identifierSemanticValue.symbolTableEntry =
+            enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
       }
-    } else {
-      TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
-      type_descriptor->kind = ARRAY_TYPE_DESCRIPTOR;
-      if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
-        SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
-        symbol_attr->attributeKind = isVariableOrTypeAttribute;
-        symbol_attr->attr.typeDescriptor = type_descriptor;
-        int dimension = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
-        for (int i = 0; i < dimension; i++) {
-          type_descriptor->properties.arrayProperties.sizeInEachDimension[i] = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension[i];
-        }
-        type_descriptor->properties.arrayProperties.dimension = dimension;
-        if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
-          printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
-        } else {
-          node->semantic_value.identifierSemanticValue.symbolTableEntry =
-              enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
-        }
-      } else if (node->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
-        AST_NODE* dimensionNode = node->child;
-        int dimension = 0;
-        while (dimensionNode) {
-          int const_int;
-          float const_float;
-          DATA_TYPE type = getExprOrConstValue(dimensionNode, &const_int, &const_float);
-          if (type == INT_TYPE) {
-            printf("%d\n", const_int);
-            type_descriptor->properties.arrayProperties.sizeInEachDimension[dimension] = const_int;
-            dimension++;
-            if (const_int < 0) {
-              printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NEGATIVE);
-            }
-          } else if (type == FLOAT_TYPE) {
-            printErrorMsgSpecial(dimensionNode, node->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NOT_INT);
-          } else {
-            // can't evaluate constant expression's value
-          }
-          dimensionNode = dimensionNode->rightSibling;
-        }
-        for (int i = 0; i < type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension; i++) {
-          type_descriptor->properties.arrayProperties.sizeInEachDimension[i + dimension] = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.sizeInEachDimension[i];
-        }
-        dimension += type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
-        if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
-          printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
-        } else {
-          type_descriptor->properties.arrayProperties.dimension = dimension;
-          type_descriptor->properties.arrayProperties.elementType = data_type;
-          SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
-          symbol_attr->attributeKind = isVariableOrTypeAttribute;
-          symbol_attr->attr.typeDescriptor = type_descriptor;
-          node->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
-        }
-      }
+      node = node->rightSibling;
     }
-    node = node->rightSibling;
-  }
+  } 
 }
 
 void variableDeclareList(AST_NODE* declarationNode) {
   AST_NODE* node = declarationNode->child;
   while (node) {
-    if (node->nodeType == DECLARATION_NODE) {
-      processDeclarationNode(node);
-    } else {
-      fprintf(stderr, "it should not happen.");
-      exit(1);
-    }
+    assert(node->nodeType == DECLARATION_NODE);
+    processDeclarationNode(node);
     node = node->rightSibling;
   }
 }
 
-void declareFunction(AST_NODE* declarationNode) {
-}
+void declareFunction(AST_NODE* idNode) {
+  SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
+  symbol_attr->attributeKind = FUNCTION_SIGNATURE;
+  symbol_attr->attr.functionSignature = (FunctionSignature*)malloc(sizeof(FunctionSignature));
+  SymbolTableEntry* type_entry = NULL;
+  int is_type_array = 0;
+  symbol_attr->attr.functionSignature->returnType = getDeclareType(idNode, &type_entry, &is_type_array);
+  AST_NODE *funtionNameNode = idNode->rightSibling;
+  AST_NODE *parameterListNode = funtionNameNode->rightSibling;
 
-void parameterList() {
+  if (is_type_array) {
+    printErrorMsg(idNode, RETURN_ARRAY);
+  }
+  processParameterList(parameterListNode, &(symbol_attr->attr.functionSignature->parameterList), &(symbol_attr->attr.functionSignature->parametersCount));
+  
+  if (declaredLocally(funtionNameNode->semantic_value.identifierSemanticValue.identifierName)) {
+    printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+  } else {
+    funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry =
+        enterSymbol(funtionNameNode->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
+  }
+
+}
+void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList, int* parametersCount) {
+  AST_NODE* node = parameterListNode->child; 
+  if (!node) {
+    (*parameterList) = NULL;
+    (*parametersCount) = 0;
+  } else {
+    Parameter* prev = NULL;
+    while (node) {
+      AST_NODE* idNode = node->child;
+      (*parametersCount)++;
+      Parameter* parameter = (Parameter *)malloc(sizeof(Parameter));
+      if (prev != NULL) {
+        prev->next = parameter;
+      }
+      else {
+        (*parameterList) = parameter;
+      }
+      prev = parameter;
+      parameter->parameterName = idNode->rightSibling->semantic_value.identifierSemanticValue.identifierName;
+      SymbolTableEntry* type_entry;
+      int is_type_array = 0;
+      getDeclareType(idNode, &type_entry, &is_type_array);
+      TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
+      processIdNode(idNode->rightSibling, &type_descriptor, is_type_array, type_entry);
+      parameter->type = type_descriptor;
+      node = node->rightSibling;
+    }
+  }
 }
 
 void checkAssignOrExpr(AST_NODE* assignOrExprRelatedNode) {
@@ -370,7 +392,8 @@ void processExprRelatedNode(AST_NODE* exprRelatedNode) {
 
 DATA_TYPE getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fValue) {
   if (exprOrConstNode->nodeType == CONST_VALUE_NODE) {
-    if (exprOrConstNode->semantic_value.const1->const_type == INTEGERC) {
+    processConstValueNode(exprOrConstNode);
+    if (exprOrConstNode->dataType == INT_TYPE) {
       *iValue = exprOrConstNode->semantic_value.const1->const_u.intval;
       return INT_TYPE;
     } else {
@@ -393,9 +416,12 @@ DATA_TYPE getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fVa
 }
 
 void evaluateExprValue(AST_NODE* exprNode) {
+  assert(exprNode->nodeType == EXPR_NODE);
+  processExprNode(exprNode);
 }
 
 void processExprNode(AST_NODE* exprNode) {
+  assert(exprNode->nodeType == EXPR_NODE);
   EXPRSemanticValue* semanticValue = &(exprNode->semantic_value.exprSemanticValue);
   if (semanticValue->kind == BINARY_OPERATION) {
     AST_NODE* child1 = exprNode->child;
@@ -441,71 +467,147 @@ void processExprNode(AST_NODE* exprNode) {
       assert(child2->nodeType == IDENTIFIER_NODE);
       processVariableValue(child2);
       isConst2 = 0;
+      return;
     }
 
     semanticValue->isConstEval = isConst1 && isConst2;
 
     // constant folding
     if (semanticValue->isConstEval) {
-      if (semanticValue->kind == BINARY_OPERATION) {
-        exprNode->dataType = getBiggerType(child1->dataType, child2->dataType);
-        switch (semanticValue->op.binaryOp) {
-          case BINARY_OP_ADD: {
-            if (exprNode->dataType == FLOAT_TYPE)
-              semanticValue->constEvalValue.fValue =
-                  (child1->dataType == INT_TYPE ? i1 : f1) + (child2->dataType == INT_TYPE ? i2 : f2);
-            else
-              semanticValue->constEvalValue.iValue =
-                  (child1->dataType == INT_TYPE ? i1 : f1) + (child2->dataType == INT_TYPE ? i2 : f2);
-            break;
-          }
-          case BINARY_OP_SUB: {
-            if (exprNode->dataType == FLOAT_TYPE)
-              semanticValue->constEvalValue.fValue =
-                  (child1->dataType == INT_TYPE ? i1 : f1) - (child2->dataType == INT_TYPE ? i2 : f2);
-            else
-              semanticValue->constEvalValue.iValue =
-                  (child1->dataType == INT_TYPE ? i1 : f1) - (child2->dataType == INT_TYPE ? i2 : f2);
-            break;
-          }
-          case BINARY_OP_MUL: {
-            if (exprNode->dataType == FLOAT_TYPE)
-              semanticValue->constEvalValue.fValue =
-                  (child1->dataType == INT_TYPE ? i1 : f1) * (child2->dataType == INT_TYPE ? i2 : f2);
-            else
-              semanticValue->constEvalValue.iValue =
-                  (child1->dataType == INT_TYPE ? i1 : f1) * (child2->dataType == INT_TYPE ? i2 : f2);
-            break;
-          }
-          case BINARY_OP_DIV: {
-            if (exprNode->dataType == FLOAT_TYPE)
-              semanticValue->constEvalValue.fValue =
-                  (child1->dataType == INT_TYPE ? i1 : f1) / (child2->dataType == INT_TYPE ? i2 : f2);
-            else
-              semanticValue->constEvalValue.iValue =
-                  (child1->dataType == INT_TYPE ? i1 : f1) / (child2->dataType == INT_TYPE ? i2 : f2);
-            break;
-          }
-          default: {
-            break;
-          }
+      switch (semanticValue->op.binaryOp) {
+        case BINARY_OP_ADD: {
+          exprNode->dataType = getBiggerType(child1->dataType, child2->dataType);
+          if (exprNode->dataType == FLOAT_TYPE)
+            semanticValue->constEvalValue.fValue =
+                (child1->dataType == INT_TYPE ? i1 : f1) + (child2->dataType == INT_TYPE ? i2 : f2);
+          else
+            semanticValue->constEvalValue.iValue =
+                (child1->dataType == INT_TYPE ? i1 : f1) + (child2->dataType == INT_TYPE ? i2 : f2);
+          break;
         }
-      }
-    } else {  // unary operation
-      AST_NODE* child1 = exprNode->child;
-      processExprNode(child1);
-      semanticValue->isConstEval = (child1->nodeType == CONST_VALUE_NODE || (child1->nodeType == EXPR_NODE && child1->semantic_value.exprSemanticValue.isConstEval));
-      /* if (semanticValue->isConstEval) {
-      switch (semanticValue->op.unaryOp) {
-        case UNARY_OP_POSITIVE: {
-          if (child1)
-            break;
+        case BINARY_OP_SUB: {
+          exprNode->dataType = getBiggerType(child1->dataType, child2->dataType);
+          if (exprNode->dataType == FLOAT_TYPE)
+            semanticValue->constEvalValue.fValue =
+                (child1->dataType == INT_TYPE ? i1 : f1) - (child2->dataType == INT_TYPE ? i2 : f2);
+          else
+            semanticValue->constEvalValue.iValue =
+                (child1->dataType == INT_TYPE ? i1 : f1) - (child2->dataType == INT_TYPE ? i2 : f2);
+          break;
         }
-        default: {
+        case BINARY_OP_MUL: {
+          exprNode->dataType = getBiggerType(child1->dataType, child2->dataType);
+          if (exprNode->dataType == FLOAT_TYPE)
+            semanticValue->constEvalValue.fValue =
+                (child1->dataType == INT_TYPE ? i1 : f1) * (child2->dataType == INT_TYPE ? i2 : f2);
+          else
+            semanticValue->constEvalValue.iValue =
+                (child1->dataType == INT_TYPE ? i1 : f1) * (child2->dataType == INT_TYPE ? i2 : f2);
+          break;
+        }
+        case BINARY_OP_DIV: {
+          exprNode->dataType = getBiggerType(child1->dataType, child2->dataType);
+          if (exprNode->dataType == FLOAT_TYPE)
+            semanticValue->constEvalValue.fValue =
+                (child1->dataType == INT_TYPE ? i1 : f1) / (child2->dataType == INT_TYPE ? i2 : f2);
+          else
+            semanticValue->constEvalValue.iValue =
+                (child1->dataType == INT_TYPE ? i1 : f1) / (child2->dataType == INT_TYPE ? i2 : f2);
+          break;
+        }
+        case BINARY_OP_EQ: {
+          exprNode->dataType = INT_TYPE;
+          semanticValue->constEvalValue.iValue = (child1->dataType == INT_TYPE ? i1 : f1) == (child2->dataType == INT_TYPE ? i2 : f2);
+          break;
+        }
+        case BINARY_OP_GE: {
+          exprNode->dataType = INT_TYPE;
+          semanticValue->constEvalValue.iValue = (child1->dataType == INT_TYPE ? i1 : f1) >= (child2->dataType == INT_TYPE ? i2 : f2);
+          break;
+        }
+        case BINARY_OP_LE: {
+          exprNode->dataType = INT_TYPE;
+          semanticValue->constEvalValue.iValue = (child1->dataType == INT_TYPE ? i1 : f1) <= (child2->dataType == INT_TYPE ? i2 : f2);
+          break;
+        }
+        case BINARY_OP_NE: {
+          exprNode->dataType = INT_TYPE;
+          semanticValue->constEvalValue.iValue = (child1->dataType == INT_TYPE ? i1 : f1) != (child2->dataType == INT_TYPE ? i2 : f2);
+          break;
+        }
+        case BINARY_OP_GT: {
+          exprNode->dataType = INT_TYPE;
+          semanticValue->constEvalValue.iValue = (child1->dataType == INT_TYPE ? i1 : f1) > (child2->dataType == INT_TYPE ? i2 : f2);
+          break;
+        }
+        case BINARY_OP_LT: {
+          exprNode->dataType = INT_TYPE;
+          semanticValue->constEvalValue.iValue = (child1->dataType == INT_TYPE ? i1 : f1) < (child2->dataType == INT_TYPE ? i2 : f2);
+          break;
+        }
+        case BINARY_OP_AND: {
+          exprNode->dataType = INT_TYPE;
+          semanticValue->constEvalValue.iValue = (child1->dataType == INT_TYPE ? i1 : f1) && (child2->dataType == INT_TYPE ? i2 : f2);
+          break;
+        }
+        case BINARY_OP_OR: {
+          exprNode->dataType = INT_TYPE;
+          semanticValue->constEvalValue.iValue = (child1->dataType == INT_TYPE ? i1 : f1) || (child2->dataType == INT_TYPE ? i2 : f2);
           break;
         }
       }
-    } */
+    }
+  } else {  // unary operation
+    AST_NODE* child1 = exprNode->child;
+    int i1;
+    float f1;
+    if (child1->nodeType == CONST_VALUE_NODE) {
+      processConstValueNode(child1);
+      semanticValue->isConstEval = 1;
+      if (child1->dataType == INT_TYPE)
+        i1 = child1->semantic_value.const1->const_u.intval;
+      else
+        f1 = child1->semantic_value.const1->const_u.fval;
+    } else if (child1->nodeType == EXPR_NODE) {
+      processExprNode(child1);
+      semanticValue->isConstEval = child1->semantic_value.exprSemanticValue.isConstEval;
+      if (child1->dataType == INT_TYPE)
+        i1 = child1->semantic_value.exprSemanticValue.constEvalValue.iValue;
+      else
+        f1 = child1->semantic_value.exprSemanticValue.constEvalValue.fValue;
+    } else {
+      assert(child1->nodeType == IDENTIFIER_NODE);
+      processVariableValue(child1);
+      semanticValue->isConstEval = 0;
+      return;
+    }
+    exprNode->dataType = child1->dataType;
+
+    // constant folding
+    if (semanticValue->isConstEval) {
+      switch (semanticValue->op.unaryOp) {
+        case UNARY_OP_POSITIVE: {
+          if (exprNode->dataType == INT_TYPE)
+            semanticValue->constEvalValue.iValue = i1;
+          else
+            semanticValue->constEvalValue.fValue = f1;
+          break;
+        }
+        case UNARY_OP_NEGATIVE: {
+          if (exprNode->dataType == INT_TYPE)
+            semanticValue->constEvalValue.iValue = -i1;
+          else
+            semanticValue->constEvalValue.fValue = -f1;
+          break;
+        }
+        case UNARY_OP_LOGICAL_NEGATION: {
+          if (exprNode->dataType == INT_TYPE)
+            semanticValue->constEvalValue.iValue = !i1;
+          else
+            semanticValue->constEvalValue.fValue = !f1;
+          break;
+        }
+      }
     }
   }
 }
@@ -577,23 +679,28 @@ int processDeclDimList(AST_NODE* arrayNameNode, TypeDescriptor** typeDescriptor,
   while (dimensionNode) {
     int const_int;
     float const_float;
-    DATA_TYPE type = getExprOrConstValue(dimensionNode, &const_int, &const_float);
-    if (type == INT_TYPE) {
-      (*typeDescriptor)->properties.arrayProperties.sizeInEachDimension[(*dimension)] = const_int;
+    if (dimensionNode->nodeType == NUL_NODE){
+      (*typeDescriptor)->properties.arrayProperties.sizeInEachDimension[(*dimension)] = -1;
       (*dimension)++;
-      if (const_int < 0) {
-        printErrorMsgSpecial(dimensionNode, arrayNameNode->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NEGATIVE);
+    } else {
+      DATA_TYPE type = getExprOrConstValue(dimensionNode, &const_int, &const_float);
+      if (type == INT_TYPE) {
+        (*typeDescriptor)->properties.arrayProperties.sizeInEachDimension[(*dimension)] = const_int;
+        (*dimension)++;
+        if (const_int < 0) {
+          printErrorMsgSpecial(dimensionNode, arrayNameNode->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NEGATIVE);
+          return 0;
+        }
+      } else if (type == FLOAT_TYPE) {
+        printErrorMsgSpecial(dimensionNode, arrayNameNode->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NOT_INT);
+        return 0;
+      } else {
+        // can't evaluate expression's value
         return 0;
       }
-    } else if (type == FLOAT_TYPE) {
-      printErrorMsgSpecial(dimensionNode, arrayNameNode->semantic_value.identifierSemanticValue.identifierName, ARRAY_SIZE_NOT_INT);
-      return 0;
-    } else {
-      // can't evaluate expression's value
-      return 0;
+      
     }
     dimensionNode = dimensionNode->rightSibling;
   }
-  // fprintf(stderr, "hi\n");
   return 1;
 }

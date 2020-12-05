@@ -405,13 +405,13 @@ id          : ID
                     makeChild($$, $2);
                 } 
         ;
-dim_decl	: MK_LB cexpr MK_RB 
+dim_decl	: MK_LB relop_expr MK_RB 
                 {
                     /*TODO*/
                     $$ = $2;
                 } 
             // TODO: Try if you can define a recursive production rule
-            | dim_decl MK_LB cexpr MK_RB
+            | dim_decl MK_LB relop_expr MK_RB
                 {
                     /*TODO*/
                     $$ = makeSibling($1, $3);
