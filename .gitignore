@@ -54,6 +54,7 @@ dkms.conf
 # Additinal files
 .DS_Store
 *.pdf
+*.gv
 
 # Output files
 parser.output
