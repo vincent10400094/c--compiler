@@ -32,9 +32,8 @@ void processExprRelatedNode(AST_NODE* exprRelatedNode);
 void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter);
 void checkReturnStmt(AST_NODE* returnNode);
 void processExprNode(AST_NODE* exprNode);
-// void processVariableLValue(AST_NODE* idNode);
-// void processVariableRValue(AST_NODE* idNode);
-void processVariableValue(AST_NODE* idNode);
+void processVariableLValue(AST_NODE* idNode);
+void processVariableRValue(AST_NODE* idNode);
 void processConstValueNode(AST_NODE* constValueNode);
 DATA_TYPE getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fValue);
 void evaluateExprValue(AST_NODE* exprNode);
@@ -65,7 +64,8 @@ typedef enum ErrorMsgKind {
   ARRAY_SIZE_NEGATIVE,
   ARRAY_SUBSCRIPT_NOT_INT,
   PASS_ARRAY_TO_SCALAR,
-  PASS_SCALAR_TO_ARRAY
+  PASS_SCALAR_TO_ARRAY,
+  INITIALIZER_NOT_CONSTANT
 } ErrorMsgKind;
 
 void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKind) {
@@ -120,7 +120,7 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
       break;
     }
     default: {
-      printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
+      printf("Unhandled error: %d\n", errorMsgKind);
       break;
     }
   }
@@ -146,8 +146,12 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind) {
       puts("size of array has non-integer type 'double'");
       break;
     }
+    case INITIALIZER_NOT_CONSTANT: {
+      puts("initializer element is not a compile-time constant");
+      break;
+    }
     default: {
-      printf("Unhandled case in void printErrorMsg(AST_NODE* node, ERROR_MSG_KIND* errorMsgKind)\n");
+      printf("Unhandled error: %d\n", errorMsgKind);
       break;
     }
   }
@@ -158,14 +162,12 @@ void semanticAnalysis(AST_NODE* root) {
 }
 
 DATA_TYPE getBiggerType(DATA_TYPE dataType1, DATA_TYPE dataType2) {
-  if (dataType1 == NONE_TYPE || dataType2 == NONE_TYPE) {
+  if (dataType1 == NONE_TYPE || dataType2 == NONE_TYPE)
     return NONE_TYPE;
-  }
-  if (dataType1 == FLOAT_TYPE || dataType2 == FLOAT_TYPE) {
+  if (dataType1 == FLOAT_TYPE || dataType2 == FLOAT_TYPE)
     return FLOAT_TYPE;
-  } else {
+  else
     return INT_TYPE;
-  }
 }
 
 void processProgramNode(AST_NODE* programNode) {
@@ -367,15 +369,56 @@ void checkAssignOrExpr(AST_NODE* assignOrExprRelatedNode) {
 }
 
 void checkWhileStmt(AST_NODE* whileNode) {
+  AST_NODE* test = whileNode->child;
+  processExprNode(test);
+  processStmtNode(test->rightSibling);
 }
 
 void checkForStmt(AST_NODE* forNode) {
+  AST_NODE* listNode = forNode->child;
+  AST_NODE* child;
+  openScope();
+  // initialization
+  child = listNode->child;
+  while (child) {
+    processStmtNode(child);
+    child = child->rightSibling;
+  }
+  // loop condition
+  listNode = listNode->rightSibling;
+  child = listNode->child;
+  while (child) {
+    processExprNode(child);
+    child = child->rightSibling;
+  }
+  // increment or decrement
+  listNode = listNode->rightSibling;
+  child = listNode->child;
+  while (child) {
+    processStmtNode(child);
+    child = child->rightSibling;
+  }
+  closeScope();
+  // for statement
+  processStmtNode(listNode->rightSibling);
 }
 
 void checkAssignmentStmt(AST_NODE* assignmentNode) {
+  AST_NODE* LHS = assignmentNode->child;
+  processVariableLValue(LHS);
+  AST_NODE* RHS = LHS->rightSibling;
+  processExprNode(RHS);
 }
 
 void checkIfStmt(AST_NODE* ifNode) {
+  AST_NODE* test = ifNode->child;
+  processExprNode(test);
+  AST_NODE* ifStmt = test->rightSibling;
+  processStmtNode(ifStmt);
+  // there is "else" statement
+  if (ifStmt->rightSibling) {
+    processStmtNode(ifStmt->rightSibling);
+  }
 }
 
 void checkWriteFunction(AST_NODE* functionCallNode) {
@@ -415,13 +458,11 @@ DATA_TYPE getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fVa
   }
 }
 
-void evaluateExprValue(AST_NODE* exprNode) {
-  assert(exprNode->nodeType == EXPR_NODE);
-  processExprNode(exprNode);
-}
+// void evaluateExprValue(AST_NODE* exprNode) {
+//   processExprNode(exprNode);
+// }
 
 void processExprNode(AST_NODE* exprNode) {
-  assert(exprNode->nodeType == EXPR_NODE);
   EXPRSemanticValue* semanticValue = &(exprNode->semantic_value.exprSemanticValue);
   if (semanticValue->kind == BINARY_OPERATION) {
     AST_NODE* child1 = exprNode->child;
@@ -445,7 +486,7 @@ void processExprNode(AST_NODE* exprNode) {
         f1 = child1->semantic_value.exprSemanticValue.constEvalValue.fValue;
     } else {
       assert(child1->nodeType == IDENTIFIER_NODE);
-      processVariableValue(child1);
+      processVariableRValue(child1);
       isConst1 = 0;
     }
 
@@ -465,7 +506,7 @@ void processExprNode(AST_NODE* exprNode) {
         f2 = child2->semantic_value.exprSemanticValue.constEvalValue.fValue;
     } else {
       assert(child2->nodeType == IDENTIFIER_NODE);
-      processVariableValue(child2);
+      processVariableRValue(child2);
       isConst2 = 0;
       return;
     }
@@ -577,7 +618,7 @@ void processExprNode(AST_NODE* exprNode) {
         f1 = child1->semantic_value.exprSemanticValue.constEvalValue.fValue;
     } else {
       assert(child1->nodeType == IDENTIFIER_NODE);
-      processVariableValue(child1);
+      processVariableRValue(child1);
       semanticValue->isConstEval = 0;
       return;
     }
@@ -612,20 +653,16 @@ void processExprNode(AST_NODE* exprNode) {
   }
 }
 
-void processVariableValue(AST_NODE* idNode) {
+void processVariableLValue(AST_NODE* idNode) {
   IdentifierSemanticValue* semanticValue = &(idNode->semantic_value.identifierSemanticValue);
   semanticValue->symbolTableEntry = retrieveSymbol(semanticValue->identifierName);
-  if (!(idNode->semantic_value.identifierSemanticValue.symbolTableEntry)) {
+  if (!(semanticValue->symbolTableEntry)) {
     printErrorMsgSpecial(idNode, semanticValue->identifierName, SYMBOL_UNDECLARED);
     return;
   }
-  SymbolAttribute* attribute = idNode->semantic_value.identifierSemanticValue.symbolTableEntry->attribute;
+  SymbolAttribute* attribute = semanticValue->symbolTableEntry->attribute;
   if (attribute->attributeKind == TYPE_ATTRIBUTE) {  // is type
     printErrorMsgSpecial(idNode, semanticValue->identifierName, IS_TYPE_NOT_VARIABLE);
-    return;
-  }
-  if (attribute->attributeKind == FUNCTION_SIGNATURE) {  // is function
-    checkFunctionCall(idNode);
     return;
   }
   // is variable
@@ -652,11 +689,45 @@ void processVariableValue(AST_NODE* idNode) {
   }
 }
 
-// void processVariableRValue(AST_NODE* idNode) {
-//   if (!(idNode->semantic_value.identifierSemanticValue.symbolTableEntry)) {
-//     printErrorMsgSpecial(idNode, idNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
-//   }
-// }
+void processVariableRValue(AST_NODE* idNode) {
+  IdentifierSemanticValue* semanticValue = &(idNode->semantic_value.identifierSemanticValue);
+  semanticValue->symbolTableEntry = retrieveSymbol(semanticValue->identifierName);
+  if (!(semanticValue->symbolTableEntry)) {
+    printErrorMsgSpecial(idNode, semanticValue->identifierName, SYMBOL_UNDECLARED);
+    return;
+  }
+  SymbolAttribute* attribute = semanticValue->symbolTableEntry->attribute;
+  if (attribute->attributeKind == TYPE_ATTRIBUTE) {  // is type
+    printErrorMsgSpecial(idNode, semanticValue->identifierName, IS_TYPE_NOT_VARIABLE);
+    return;
+  }
+  if (attribute->attributeKind == FUNCTION_SIGNATURE) {  // is function
+    checkFunctionCall(idNode);
+    return;
+  }
+  // is variable
+  if (attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
+    if (semanticValue->kind == ARRAY_ID) {
+      printErrorMsg(idNode, NOT_ARRAY);
+    }
+    idNode->dataType = attribute->attr.typeDescriptor->properties.dataType;
+  } else {  // array type
+    int dimCount = 0;
+    AST_NODE* ptr = idNode->child;
+    while (ptr) {
+      dimCount++;
+      ptr = ptr->rightSibling;
+    }
+    if (dimCount > attribute->attr.typeDescriptor->properties.arrayProperties.dimension) {
+      char c = (char)dimCount;
+      printErrorMsgSpecial(idNode, &c, INCOMPATIBLE_ARRAY_DIMENSION);
+    }
+    if (dimCount < attribute->attr.typeDescriptor->properties.arrayProperties.dimension) {
+      // not handled yet
+    }
+    idNode->dataType = attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
+  }
+}
 
 void processConstValueNode(AST_NODE* constValueNode) {
   constValueNode->dataType = (constValueNode->semantic_value.const1->const_type == INTEGERC) ? INT_TYPE : FLOAT_TYPE;
@@ -666,9 +737,66 @@ void checkReturnStmt(AST_NODE* returnNode) {
 }
 
 void processBlockNode(AST_NODE* blockNode) {
+  // empty block
+  if (!blockNode->child)
+    return;
+  openScope();
+  AST_NODE* child = blockNode->child;
+  if (child->nodeType == VARIABLE_DECL_LIST_NODE) {
+    variableDeclareList(child);
+    if (child->rightSibling) {
+      assert(child->nodeType == STMT_LIST_NODE);
+      processStmtNode(child->child);
+    }
+  } else {
+    assert(child->nodeType == STMT_LIST_NODE);
+    processStmtNode(child->child);
+  }
+  closeScope();
 }
 
 void processStmtNode(AST_NODE* stmtNode) {
+  while (stmtNode) {
+    switch (stmtNode->nodeType) {
+      case NONEMPTY_ASSIGN_EXPR_LIST_NODE: {
+        switch (stmtNode->semantic_value.stmtSemanticValue.kind) {
+          case ASSIGN_STMT: {
+            checkAssignmentStmt(stmtNode);
+            break;
+          }
+          case IF_STMT: {
+            checkIfStmt(stmtNode);
+            break;
+          }
+          case FOR_STMT: {
+            checkForStmt(stmtNode);
+            break;
+          }
+          case FUNCTION_CALL_STMT: {
+            checkFunctionCall(stmtNode);
+            break;
+          }
+          case WHILE_STMT: {
+            checkWhileStmt(stmtNode);
+            break;
+          }
+          case RETURN_STMT: {
+            checkReturnStmt(stmtNode);
+            break;
+          }
+        }
+        break;
+      }
+      case BLOCK_NODE: {
+        processBlockNode(stmtNode);
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+    stmtNode = stmtNode->rightSibling;
+  }
 }
 
 void processGeneralNode(AST_NODE* node) {
