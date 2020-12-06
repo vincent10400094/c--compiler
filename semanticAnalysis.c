@@ -42,6 +42,7 @@ void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList
 typedef enum ErrorMsgKind {
   SYMBOL_IS_NOT_TYPE,
   SYMBOL_REDECLARE,
+  SYMBOL_REDECLARE_DIFFERENT_KIND,
   SYMBOL_UNDECLARED,
   NOT_FUNCTION_NAME,
   TRY_TO_INIT_ARRAY,
@@ -82,6 +83,10 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
   switch (errorMsgKind) {
     case SYMBOL_REDECLARE: {
       printf("redefinition of '%s'\n", name2);
+      break;
+    }
+    case SYMBOL_REDECLARE_DIFFERENT_KIND: {
+      printf("redefinition of '%s' as different kind of symbol\n", name2);
       break;
     }
     case SYMBOL_UNDECLARED: {
@@ -340,8 +345,11 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
           printType(retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attr.typeDescriptor->properties.dataType);
           printf("')\n");
         }
-        if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attributeKind == VARIABLE_ATTRIBUTE && isVariableOrTypeAttribute == VARIABLE_ATTRIBUTE)
+        else if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attributeKind == VARIABLE_ATTRIBUTE && isVariableOrTypeAttribute == VARIABLE_ATTRIBUTE)
           printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+        else{
+          printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE_DIFFERENT_KIND);
+        }
       } else {
         node->semantic_value.identifierSemanticValue.symbolTableEntry =
             enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
@@ -375,7 +383,11 @@ void declareFunction(AST_NODE* idNode) {
   }
 
   if (declaredLocally(funtionNameNode->semantic_value.identifierSemanticValue.identifierName)) {
-    printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+    if (retrieveSymbol(funtionNameNode->semantic_value.identifierSemanticValue.identifierName)->attribute->attributeKind == FUNCTION_SIGNATURE) {
+      printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+    } else {
+      printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE_DIFFERENT_KIND);
+    }
     return;
   } else {
     funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry =
