@@ -113,7 +113,10 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
       break;
     }
     case NOT_FUNCTION_NAME: {
-      printf("called object type '%s' is not a function or function pointer\n", name2);
+      SymbolTableEntry* table_entry = retrieveSymbol(name2);
+      printf("called object type '");
+      printTypeDescriptor(table_entry->attribute->attr.typeDescriptor);
+      printf("' is not a function or function pointer\n");
       break;
     }
     case INCOMPATIBLE_ARRAY_DIMENSION: {
@@ -239,6 +242,7 @@ void processTypeNode(AST_NODE* idNodeAsType) {
 
 DATA_TYPE getDeclareType(AST_NODE* node, SymbolTableEntry** type_entry, int* is_typedef_array) {
   DATA_TYPE data_type = NONE_TYPE;
+
   if (strcmp("int", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
     data_type = INT_TYPE;
   } else if (strcmp("float", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
@@ -247,7 +251,7 @@ DATA_TYPE getDeclareType(AST_NODE* node, SymbolTableEntry** type_entry, int* is_
     data_type = VOID_TYPE;
   } else {
     *type_entry = retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName);
-    if (type_entry == NULL) {
+    if (*type_entry == NULL) {
       printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
     } else {
       if ((*type_entry)->attribute->attributeKind != TYPE_ATTRIBUTE) {
@@ -318,6 +322,7 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
   SymbolTableEntry* type_entry = NULL;
   int is_type_array = 0;
   data_type = getDeclareType(node, &type_entry, &is_type_array);
+
   node = node->rightSibling;
   while (node) {
     TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
@@ -371,6 +376,7 @@ void declareFunction(AST_NODE* idNode) {
 
   if (declaredLocally(funtionNameNode->semantic_value.identifierSemanticValue.identifierName)) {
     printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+    return;
   } else {
     funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry =
         enterSymbol(funtionNameNode->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
