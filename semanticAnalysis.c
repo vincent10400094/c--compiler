@@ -267,6 +267,14 @@ int processIdNode(AST_NODE* node, TypeDescriptor** type_descriptor, int is_type_
   if (is_type_array == 0) {
     if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID || node->semantic_value.identifierSemanticValue.kind == WITH_INIT_ID) {
       (*type_descriptor)->kind = SCALAR_TYPE_DESCRIPTOR;
+      if (node->semantic_value.identifierSemanticValue.kind == WITH_INIT_ID) {
+        assert(node->child != NULL);
+        int iValue;
+        float fValue;
+        if (getExprOrConstValue(node->child, &iValue, &fValue) == NONE_TYPE) {
+          printErrorMsg(node, INITIALIZER_NOT_CONSTANT);
+        }
+      }
     } else if (node->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
       (*type_descriptor)->kind = ARRAY_TYPE_DESCRIPTOR;
       int dimension = 0;
@@ -476,9 +484,7 @@ void checkFunctionCall(AST_NODE* functionCallNode) {
 void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter) {
   if (formalParameter->type->kind == SCALAR_TYPE_DESCRIPTOR) {
     if (actualParameter->nodeType == EXPR_NODE || actualParameter->nodeType == CONST_VALUE_NODE) {
-      int int_value;
-      float float_value;
-      DATA_TYPE type = getExprOrConstValue(actualParameter, &int_value, &float_value);
+      processExprNode(actualParameter);
     } else if (actualParameter->nodeType == IDENTIFIER_NODE) {
       SymbolTableEntry* table_entry = retrieveSymbol(actualParameter->semantic_value.identifierSemanticValue.identifierName);
       if (actualParameter->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
@@ -573,6 +579,14 @@ DATA_TYPE getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fVa
       *fValue = exprOrConstNode->semantic_value.const1->const_u.fval;
       return FLOAT_TYPE;
     }
+  }
+  if (exprOrConstNode->nodeType == IDENTIFIER_NODE) {
+    processVariableRValue(exprOrConstNode);
+    return NONE_TYPE;
+  }
+  if (exprOrConstNode->nodeType == STMT_NODE) {
+    checkFunctionCall(exprOrConstNode);
+    return NONE_TYPE;
   }
   assert(exprOrConstNode->nodeType == EXPR_NODE);
   processExprNode(exprOrConstNode);
