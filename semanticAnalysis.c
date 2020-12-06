@@ -482,28 +482,16 @@ void checkFunctionCall(AST_NODE* functionCallNode) {
 }
 
 void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter) {
+  processExprNode(actualParameter);
   if (formalParameter->type->kind == SCALAR_TYPE_DESCRIPTOR) {
-    if (actualParameter->nodeType == EXPR_NODE || actualParameter->nodeType == CONST_VALUE_NODE) {
-      processExprNode(actualParameter);
-    } else if (actualParameter->nodeType == IDENTIFIER_NODE) {
+    if (actualParameter->nodeType == IDENTIFIER_NODE) {
       SymbolTableEntry* table_entry = retrieveSymbol(actualParameter->semantic_value.identifierSemanticValue.identifierName);
       if (actualParameter->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
-        if (table_entry == NULL) {
-          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
-        } else if (table_entry->attribute->attributeKind == FUNCTION_SIGNATURE) {
-          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, IS_FUNCTION_NOT_VARIABLE);
-        } else if (table_entry->attribute->attributeKind == TYPE_ATTRIBUTE) {
-          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, IS_TYPE_NOT_VARIABLE);
-        } else if (table_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
+        if (table_entry && table_entry->attribute->attr.typeDescriptor->kind == ARRAY_TYPE_DESCRIPTOR) {
           printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PASS_ARRAY_TO_SCALAR);
         }
       } else if (actualParameter->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
-        if (table_entry == NULL) {
-          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
-        } else if (table_entry->attribute->attributeKind != VARIABLE_ATTRIBUTE ||
-                   table_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
-          printErrorMsg(actualParameter, NOT_ARRAY);
-        } else {
+        if (table_entry) {
           TypeDescriptor* typeDescriptor;
           int dimCount = 0;
           AST_NODE* ptr = actualParameter->child;
@@ -514,13 +502,9 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
           }
           if (table_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension > dimCount) {
             printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PASS_ARRAY_TO_SCALAR);
-          } else if (table_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension < dimCount) {
-            printErrorMsg(actualParameter, NOT_ARRAY);
           }
         }
       }
-    } else if (actualParameter->nodeType == STMT_NODE) {
-      processStmtNode(actualParameter);
     }
   } else {
     if (actualParameter->nodeType != IDENTIFIER_NODE) {
@@ -528,24 +512,13 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
     } else {
       SymbolTableEntry* table_entry = retrieveSymbol(actualParameter->semantic_value.identifierSemanticValue.identifierName);
       if (actualParameter->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
-        if (table_entry == NULL) {
-          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
-        } else if (table_entry->attribute->attributeKind == FUNCTION_SIGNATURE) {
-          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, IS_FUNCTION_NOT_VARIABLE);
-        } else if (table_entry->attribute->attributeKind == TYPE_ATTRIBUTE) {
-          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, IS_TYPE_NOT_VARIABLE);
-        } else if (table_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
+        if (table_entry && table_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
           printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PASS_SCALAR_TO_ARRAY);
         } else if (table_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension != formalParameter->type->properties.arrayProperties.dimension) {
           printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PARAMETER_TYPE_UNMATCH);
         }
       } else if (actualParameter->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
-        if (table_entry == NULL) {
-          printErrorMsgSpecial(actualParameter, actualParameter->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
-        } else if (table_entry->attribute->attributeKind != VARIABLE_ATTRIBUTE ||
-                   table_entry->attribute->attr.typeDescriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
-          printErrorMsg(actualParameter, NOT_ARRAY);
-        } else {
+        if(table_entry) {
           int dimCount = 0;
           AST_NODE* ptr = actualParameter->child;
           while (ptr) {
@@ -557,8 +530,6 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
             if (table_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension - dimCount != formalParameter->type->properties.arrayProperties.dimension) {
               printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PARAMETER_TYPE_UNMATCH);
             }
-          } else if (table_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension < dimCount) {
-            printErrorMsg(actualParameter, NOT_ARRAY);
           }
         }
       }
