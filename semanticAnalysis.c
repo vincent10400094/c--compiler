@@ -870,7 +870,7 @@ void processVariableRValue(AST_NODE* idNode) {
     }
     if (dimCount > attribute->attr.typeDescriptor->properties.arrayProperties.dimension) {
       char c = (char)dimCount;
-      printErrorMsgSpecial(idNode, &c, INCOMPATIBLE_ARRAY_DIMENSION);
+      printErrorMsg(idNode, NOT_ARRAY);
     }
     if (dimCount < attribute->attr.typeDescriptor->properties.arrayProperties.dimension) {
       // not handled yet
