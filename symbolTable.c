@@ -96,6 +96,10 @@ void printType(DATA_TYPE type) {
       printf("float ");
       break;
     }
+    case VOID_TYPE: {
+      printf("void ");
+      break;
+    }
     default: {
       printf("unhandled type ");
       break;

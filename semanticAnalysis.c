@@ -331,8 +331,8 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
         node->semantic_value.identifierSemanticValue.symbolTableEntry =
             enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
       }
-      node = node->rightSibling;
     }
+    node = node->rightSibling;
   }
 }
 
@@ -358,14 +358,16 @@ void declareFunction(AST_NODE* idNode) {
   if (is_type_array) {
     printErrorMsg(idNode, RETURN_ARRAY);
   }
-  openScope();
-  processParameterList(parameterListNode, &(symbol_attr->attr.functionSignature->parameterList), &(symbol_attr->attr.functionSignature->parametersCount));
+
   if (declaredLocally(funtionNameNode->semantic_value.identifierSemanticValue.identifierName)) {
     printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
   } else {
     funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry =
         enterSymbol(funtionNameNode->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
   }
+  openScope();
+  processParameterList(parameterListNode, &(symbol_attr->attr.functionSignature->parameterList), &(symbol_attr->attr.functionSignature->parametersCount));
+  funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->parameterList = symbol_attr->attr.functionSignature->parameterList;
   processBlockNode(parameterListNode->rightSibling);
   closeScope();
 }
@@ -394,6 +396,14 @@ void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList
       getDeclareType(idNode, &type_entry, &is_type_array);
       TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
       processIdNode(idNode->rightSibling, &type_descriptor, is_type_array, type_entry);
+      SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
+      symbol_attr->attributeKind = VARIABLE_ATTRIBUTE;
+      symbol_attr->attr.typeDescriptor = type_descriptor;
+      if (declaredLocally(parameter->parameterName)) {
+        printErrorMsgSpecial(idNode, idNode->rightSibling->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+      } else {
+        idNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idNode->rightSibling->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
+      }
       parameter->type = type_descriptor;
       node = node->rightSibling;
     }
@@ -520,7 +530,7 @@ void checkParameterPassing(Parameter* formalParameter, AST_NODE* actualParameter
           printErrorMsgSpecial(actualParameter, actualParameter->parent->leftmostSibling->semantic_value.identifierSemanticValue.identifierName, PARAMETER_TYPE_UNMATCH);
         }
       } else if (actualParameter->semantic_value.identifierSemanticValue.kind == ARRAY_ID) {
-        if(table_entry) {
+        if (table_entry) {
           int dimCount = 0;
           AST_NODE* ptr = actualParameter->child;
           while (ptr) {
