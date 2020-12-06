@@ -893,6 +893,9 @@ void processConstValueNode(AST_NODE* constValueNode) {
 void checkReturnStmt(AST_NODE* returnNode) {
   AST_NODE* funtionNameNode = returnNode->parent->parent->leftmostSibling->rightSibling;
   DATA_TYPE returnType = funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->returnType;
+  // return statement without expression
+  if (!returnNode->child)
+    return;
   int iValue;
   float fValue;
   if (returnType == INT_TYPE && getExprOrConstValue(returnNode->child, &iValue, &fValue) == FLOAT_TYPE) {
