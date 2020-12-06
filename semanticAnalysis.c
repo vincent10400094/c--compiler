@@ -153,7 +153,7 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind) {
       break;
     }
     case ARRAY_SIZE_NOT_INT: {
-      puts("size of array has non-integer type 'double'");
+      // puts("size of array has non-integer type 'double'");
       break;
     }
     case INITIALIZER_NOT_CONSTANT: {
@@ -358,6 +358,7 @@ void declareFunction(AST_NODE* idNode) {
   if (is_type_array) {
     printErrorMsg(idNode, RETURN_ARRAY);
   }
+  openScope();
   processParameterList(parameterListNode, &(symbol_attr->attr.functionSignature->parameterList), &(symbol_attr->attr.functionSignature->parametersCount));
   if (declaredLocally(funtionNameNode->semantic_value.identifierSemanticValue.identifierName)) {
     printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
@@ -366,6 +367,7 @@ void declareFunction(AST_NODE* idNode) {
         enterSymbol(funtionNameNode->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
   }
   processBlockNode(parameterListNode->rightSibling);
+  closeScope();
 }
 
 void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList, int* parametersCount) {
@@ -911,55 +913,60 @@ void processBlockNode(AST_NODE* blockNode) {
   // empty block
   if (!blockNode->child)
     return;
-  openScope();
   AST_NODE* child = blockNode->child;
   if (child->nodeType == VARIABLE_DECL_LIST_NODE) {
     variableDeclareList(child);
     if (child->rightSibling) {
       child = child->rightSibling;
       assert(child->nodeType == STMT_LIST_NODE);
-      processStmtNode(child->child);
+      child = child->child;
+      while (child) {
+        processStmtNode(child);
+        child = child->rightSibling;
+      }
     }
   } else {
     assert(child->nodeType == STMT_LIST_NODE);
-    processStmtNode(child->child);
+    child = child->child;
+    while (child) {
+      processStmtNode(child);
+      child = child->rightSibling;
+    }
   }
-  closeScope();
 }
 
 void processStmtNode(AST_NODE* stmtNode) {
-  while (stmtNode) {
-    if (stmtNode->nodeType == STMT_NODE) {
-      switch (stmtNode->semantic_value.stmtSemanticValue.kind) {
-        case ASSIGN_STMT: {
-          checkAssignmentStmt(stmtNode);
-          break;
-        }
-        case IF_STMT: {
-          checkIfStmt(stmtNode);
-          break;
-        }
-        case FOR_STMT: {
-          checkForStmt(stmtNode);
-          break;
-        }
-        case FUNCTION_CALL_STMT: {
-          checkFunctionCall(stmtNode);
-          break;
-        }
-        case WHILE_STMT: {
-          checkWhileStmt(stmtNode);
-          break;
-        }
-        case RETURN_STMT: {
-          checkReturnStmt(stmtNode);
-          break;
-        }
+  if (stmtNode->nodeType == STMT_NODE) {
+    switch (stmtNode->semantic_value.stmtSemanticValue.kind) {
+      case ASSIGN_STMT: {
+        checkAssignmentStmt(stmtNode);
+        break;
       }
-    } else if (stmtNode->nodeType == BLOCK_NODE) {
-      processBlockNode(stmtNode);
+      case IF_STMT: {
+        checkIfStmt(stmtNode);
+        break;
+      }
+      case FOR_STMT: {
+        checkForStmt(stmtNode);
+        break;
+      }
+      case FUNCTION_CALL_STMT: {
+        checkFunctionCall(stmtNode);
+        break;
+      }
+      case WHILE_STMT: {
+        checkWhileStmt(stmtNode);
+        break;
+      }
+      case RETURN_STMT: {
+        checkReturnStmt(stmtNode);
+        break;
+      }
     }
-    stmtNode = stmtNode->rightSibling;
+  } else if (stmtNode->nodeType == BLOCK_NODE) {
+    openScope();
+    processBlockNode(stmtNode);
+    closeScope();
   }
 }
 
