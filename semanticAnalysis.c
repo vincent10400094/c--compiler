@@ -456,9 +456,6 @@ void checkFunctionCall(AST_NODE* functionCallNode) {
   } else if (table_entry->attribute->attributeKind != FUNCTION_SIGNATURE) {
     printErrorMsgSpecial(functionIdNode, functionIdNode->semantic_value.identifierSemanticValue.identifierName, NOT_FUNCTION_NAME);
   } else {
-    if (parameterListNode->nodeType == NUL_NODE) {
-      return;
-    }
     AST_NODE* parameterNode = parameterListNode->child;
     Parameter* parameter = table_entry->attribute->attr.functionSignature->parameterList;
     while (parameter) {
