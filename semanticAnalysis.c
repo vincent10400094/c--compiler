@@ -111,6 +111,10 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
       printf("'%s' declared as an array with a negative size\n", name2);
       break;
     }
+    case NOT_FUNCTION_NAME: {
+      printf("called object type '%s' is not a function or function pointer\n", name2);
+      break;
+    }
     case INCOMPATIBLE_ARRAY_DIMENSION: {
       int dimCount = (int)(*name2);
       printf("array type '");
@@ -452,6 +456,9 @@ void checkFunctionCall(AST_NODE* functionCallNode) {
   } else if (table_entry->attribute->attributeKind != FUNCTION_SIGNATURE) {
     printErrorMsgSpecial(functionIdNode, functionIdNode->semantic_value.identifierSemanticValue.identifierName, NOT_FUNCTION_NAME);
   } else {
+    if (parameterListNode->nodeType == NUL_NODE) {
+      return;
+    }
     AST_NODE* parameterNode = parameterListNode->child;
     Parameter* parameter = table_entry->attribute->attr.functionSignature->parameterList;
     while (parameter) {
@@ -589,8 +596,16 @@ DATA_TYPE getExprOrConstValue(AST_NODE* exprOrConstNode, int* iValue, float* fVa
 // }
 
 void processExprNode(AST_NODE* exprNode) {
-  if (exprNode->nodeType == CONST_VALUE_NODE || exprNode->nodeType == IDENTIFIER_NODE)
+  if (exprNode->nodeType == CONST_VALUE_NODE) {
+    processConstValueNode(exprNode);
     return;
+  } else if (exprNode->nodeType == IDENTIFIER_NODE) {
+    processVariableRValue(exprNode);
+    return;
+  } else if (exprNode->nodeType == STMT_NODE) {
+    checkFunctionCall(exprNode);
+    return;
+  }
   EXPRSemanticValue* semanticValue = &(exprNode->semantic_value.exprSemanticValue);
   if (semanticValue->kind == BINARY_OPERATION) {
     AST_NODE* child1 = exprNode->child;
@@ -605,17 +620,20 @@ void processExprNode(AST_NODE* exprNode) {
         i1 = child1->semantic_value.const1->const_u.intval;
       else
         f1 = child1->semantic_value.const1->const_u.fval;
-    } else if (child1->nodeType == EXPR_NODE) {
+    } else if (child1->nodeType == IDENTIFIER_NODE) {
+      processVariableRValue(child1);
+      isConst1 = 0;
+    } else if (child1->nodeType == STMT_NODE) {
+      checkFunctionCall(child1);
+      isConst1 = 0;
+    } else {
+      assert(child1->nodeType == EXPR_NODE);
       processExprNode(child1);
       isConst1 = child1->semantic_value.exprSemanticValue.isConstEval;
       if (child1->dataType == INT_TYPE)
         i1 = child1->semantic_value.exprSemanticValue.constEvalValue.iValue;
       else
         f1 = child1->semantic_value.exprSemanticValue.constEvalValue.fValue;
-    } else {
-      assert(child1->nodeType == IDENTIFIER_NODE);
-      processVariableRValue(child1);
-      isConst1 = 0;
     }
 
     if (child2->nodeType == CONST_VALUE_NODE) {
@@ -625,18 +643,20 @@ void processExprNode(AST_NODE* exprNode) {
         i2 = child2->semantic_value.const1->const_u.intval;
       else
         f2 = child2->semantic_value.const1->const_u.fval;
-    } else if (child2->nodeType == EXPR_NODE) {
+    } else if (child2->nodeType == IDENTIFIER_NODE) {
+      processVariableRValue(child2);
+      isConst2 = 0;
+    } else if (child2->nodeType == STMT_NODE) {
+      checkFunctionCall(child2);
+      isConst2 = 0;
+    } else {
+      assert(child2->nodeType == EXPR_NODE);
       processExprNode(child2);
       isConst2 = child2->semantic_value.exprSemanticValue.isConstEval;
       if (child2->dataType == INT_TYPE)
         i2 = child2->semantic_value.exprSemanticValue.constEvalValue.iValue;
       else
         f2 = child2->semantic_value.exprSemanticValue.constEvalValue.fValue;
-    } else {
-      assert(child2->nodeType == IDENTIFIER_NODE);
-      processVariableRValue(child2);
-      isConst2 = 0;
-      return;
     }
 
     semanticValue->isConstEval = isConst1 && isConst2;
@@ -737,19 +757,22 @@ void processExprNode(AST_NODE* exprNode) {
         i1 = child1->semantic_value.const1->const_u.intval;
       else
         f1 = child1->semantic_value.const1->const_u.fval;
-    } else if (child1->nodeType == EXPR_NODE) {
+    } else if (child1->nodeType == IDENTIFIER_NODE) {
+      processVariableRValue(child1);
+      semanticValue->isConstEval = 0;
+    } else if (child1->nodeType == STMT_NODE) {
+      checkFunctionCall(child1);
+      semanticValue->isConstEval = 0;
+    } else {
+      assert(child1->nodeType == EXPR_NODE);
       processExprNode(child1);
       semanticValue->isConstEval = child1->semantic_value.exprSemanticValue.isConstEval;
       if (child1->dataType == INT_TYPE)
         i1 = child1->semantic_value.exprSemanticValue.constEvalValue.iValue;
       else
         f1 = child1->semantic_value.exprSemanticValue.constEvalValue.fValue;
-    } else {
-      assert(child1->nodeType == IDENTIFIER_NODE);
-      processVariableRValue(child1);
-      semanticValue->isConstEval = 0;
-      return;
     }
+
     exprNode->dataType = child1->dataType;
 
     // constant folding
@@ -832,7 +855,7 @@ void processVariableRValue(AST_NODE* idNode) {
     return;
   }
   if (attribute->attributeKind == FUNCTION_SIGNATURE) {  // is function
-    checkFunctionCall(idNode);
+    // unhandled: incompatible pointer to <type> conversion assigning to '<type>' from '<type> (*)()'
     return;
   }
   // is variable
