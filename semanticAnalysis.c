@@ -64,7 +64,8 @@ typedef enum ErrorMsgKind {
   ARRAY_SUBSCRIPT_NOT_INT,
   PASS_ARRAY_TO_SCALAR,
   PASS_SCALAR_TO_ARRAY,
-  INITIALIZER_NOT_CONSTANT
+  INITIALIZER_NOT_CONSTANT,
+  TYPE_REDEFINE
 } ErrorMsgKind;
 
 typedef enum {
@@ -120,6 +121,7 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
       printf("array type '");
       TypeDescriptor* des = node1->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor;
       printType(des->properties.arrayProperties.elementType);
+      putchar(' ');
       for (int i = dimCount; i < des->properties.arrayProperties.dimension; i++) {
         printf("[%d]", des->properties.arrayProperties.sizeInEachDimension[i]);
       }
@@ -326,7 +328,15 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
       symbol_attr->attributeKind = isVariableOrTypeAttribute;
       symbol_attr->attr.typeDescriptor = type_descriptor;
       if (declaredLocally(node->semantic_value.identifierSemanticValue.identifierName)) {
-        printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+        if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attributeKind == TYPE_ATTRIBUTE && isVariableOrTypeAttribute == TYPE_ATTRIBUTE) {
+          printf("typedef redefinition with different types ('");
+          printType(data_type);
+          printf("' vs '");
+          printType(retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attr.typeDescriptor->properties.dataType);
+          printf("')\n");
+        }
+        if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attributeKind == VARIABLE_ATTRIBUTE && isVariableOrTypeAttribute == VARIABLE_ATTRIBUTE)
+          printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
       } else {
         node->semantic_value.identifierSemanticValue.symbolTableEntry =
             enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);

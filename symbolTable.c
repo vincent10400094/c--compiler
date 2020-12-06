@@ -89,19 +89,19 @@ SymbolTableEntry *enterSymbol(char *symbolName, SymbolAttribute *attribute) {
 void printType(DATA_TYPE type) {
   switch (type) {
     case INT_TYPE: {
-      printf("int ");
+      printf("int");
       break;
     }
     case FLOAT_TYPE: {
-      printf("float ");
+      printf("float");
       break;
     }
     case VOID_TYPE: {
-      printf("void ");
+      printf("void");
       break;
     }
     default: {
-      printf("unhandled type ");
+      printf("unhandled type");
       break;
     }
   }
@@ -110,8 +110,10 @@ void printType(DATA_TYPE type) {
 void printTypeDescriptor(TypeDescriptor *des) {
   if (des->kind == SCALAR_TYPE_DESCRIPTOR) {
     printType(des->properties.dataType);
+    putchar(' ');
   } else if (des->kind == ARRAY_TYPE_DESCRIPTOR) {
     printType(des->properties.arrayProperties.elementType);
+    putchar(' ');
     for (int i = 0; i < des->properties.arrayProperties.dimension; i++) {
       printf("[%d]", des->properties.arrayProperties.sizeInEachDimension[i]);
     }
@@ -135,6 +137,7 @@ void printAttribute(SymbolAttribute *attribute) {
     case FUNCTION_SIGNATURE: {
       printf("%s: ", "func");
       printType(attribute->attr.functionSignature->returnType);
+      putchar(' ');
       Parameter *ptr = attribute->attr.functionSignature->parameterList;
       putchar('(');
       while (ptr) {
