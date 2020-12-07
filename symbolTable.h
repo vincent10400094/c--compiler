@@ -77,6 +77,8 @@ typedef struct SymbolTable {
   int scope;
 } SymbolTable;
 
+extern SymbolTable* topSymbolTable;
+
 void initializeSymbolTable();
 void symbolTableEnd();
 SymbolTableEntry* retrieveSymbol(char* symbolName);

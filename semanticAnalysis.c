@@ -301,7 +301,7 @@ int processIdNode(AST_NODE* node, TypeDescriptor** type_descriptor, int is_type_
         assert(node->child != NULL);
         int iValue;
         float fValue;
-        if (getExprOrConstValue(node->child, &iValue, &fValue) == NONE_TYPE) {
+        if (getExprOrConstValue(node->child, &iValue, &fValue) == NONE_TYPE && topSymbolTable->scope == 0) {
           printErrorMsg(node, INITIALIZER_NOT_CONSTANT);
         }
       }
@@ -370,10 +370,9 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
           printf("' vs '");
           printType(retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attr.typeDescriptor->properties.dataType);
           printf("')\n");
-        }
-        else if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attributeKind == VARIABLE_ATTRIBUTE && isVariableOrTypeAttribute == VARIABLE_ATTRIBUTE)
+        } else if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attributeKind == VARIABLE_ATTRIBUTE && isVariableOrTypeAttribute == VARIABLE_ATTRIBUTE)
           printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
-        else{
+        else {
           printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE_DIFFERENT_KIND);
         }
       } else {
