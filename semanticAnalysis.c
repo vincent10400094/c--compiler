@@ -134,9 +134,13 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
     }
     case NOT_FUNCTION_NAME: {
       SymbolTableEntry* table_entry = retrieveSymbol(name2);
-      printf("called object type '");
-      printTypeDescriptor(table_entry->attribute->attr.typeDescriptor);
-      printf("' is not a function or function pointer\n");
+      if (table_entry->attribute->attributeKind == VARIABLE_ATTRIBUTE) {
+        printf("called object type '");
+        printTypeDescriptor(table_entry->attribute->attr.typeDescriptor);
+        printf("' is not a function or function pointer\n");
+      } else if (table_entry->attribute->attributeKind == TYPE_ATTRIBUTE) {
+        printf("unexpected type name '%s': expected expression\n", name2);
+      }
       break;
     }
     case INCOMPATIBLE_ARRAY_DIMENSION: {
