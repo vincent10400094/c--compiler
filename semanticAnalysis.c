@@ -43,6 +43,7 @@ void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList
 typedef enum ErrorMsgKind {
   SYMBOL_IS_NOT_TYPE,
   SYMBOL_REDECLARE,
+  SYMBOL_REDECLARE_DIFFERENT_KIND,
   SYMBOL_UNDECLARED,
   NOT_FUNCTION_NAME,
   TRY_TO_INIT_ARRAY,
@@ -85,6 +86,10 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
       printf("redefinition of '%s'\n", name2);
       break;
     }
+    case SYMBOL_REDECLARE_DIFFERENT_KIND: {
+      printf("redefinition of '%s' as different kind of symbol\n", name2);
+      break;
+    }
     case SYMBOL_UNDECLARED: {
       printf("use of undeclared identifier '%s'\n", name2);
       break;
@@ -114,7 +119,10 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
       break;
     }
     case NOT_FUNCTION_NAME: {
-      printf("called object type '%s' is not a function or function pointer\n", name2);
+      SymbolTableEntry* table_entry = retrieveSymbol(name2);
+      printf("called object type '");
+      printTypeDescriptor(table_entry->attribute->attr.typeDescriptor);
+      printf("' is not a function or function pointer\n");
       break;
     }
     case INCOMPATIBLE_ARRAY_DIMENSION: {
@@ -240,6 +248,7 @@ void processTypeNode(AST_NODE* idNodeAsType) {
 
 DATA_TYPE getDeclareType(AST_NODE* node, SymbolTableEntry** type_entry, int* is_typedef_array) {
   DATA_TYPE data_type = NONE_TYPE;
+
   if (strcmp("int", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
     data_type = INT_TYPE;
   } else if (strcmp("float", node->semantic_value.identifierSemanticValue.identifierName) == 0) {
@@ -248,7 +257,7 @@ DATA_TYPE getDeclareType(AST_NODE* node, SymbolTableEntry** type_entry, int* is_
     data_type = VOID_TYPE;
   } else {
     *type_entry = retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName);
-    if (type_entry == NULL) {
+    if (*type_entry == NULL) {
       printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_UNDECLARED);
     } else {
       if ((*type_entry)->attribute->attributeKind != TYPE_ATTRIBUTE) {
@@ -319,6 +328,7 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
   SymbolTableEntry* type_entry = NULL;
   int is_type_array = 0;
   data_type = getDeclareType(node, &type_entry, &is_type_array);
+
   node = node->rightSibling;
   while (node) {
     TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
@@ -336,8 +346,11 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
           printType(retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attr.typeDescriptor->properties.dataType);
           printf("')\n");
         }
-        if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attributeKind == VARIABLE_ATTRIBUTE && isVariableOrTypeAttribute == VARIABLE_ATTRIBUTE)
+        else if (retrieveSymbol(node->semantic_value.identifierSemanticValue.identifierName)->attribute->attributeKind == VARIABLE_ATTRIBUTE && isVariableOrTypeAttribute == VARIABLE_ATTRIBUTE)
           printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+        else{
+          printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE_DIFFERENT_KIND);
+        }
       } else {
         node->semantic_value.identifierSemanticValue.symbolTableEntry =
             enterSymbol(node->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
@@ -371,7 +384,12 @@ void declareFunction(AST_NODE* idNode) {
   }
 
   if (declaredLocally(funtionNameNode->semantic_value.identifierSemanticValue.identifierName)) {
-    printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+    if (retrieveSymbol(funtionNameNode->semantic_value.identifierSemanticValue.identifierName)->attribute->attributeKind == FUNCTION_SIGNATURE) {
+      printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
+    } else {
+      printErrorMsgSpecial(funtionNameNode, funtionNameNode->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE_DIFFERENT_KIND);
+    }
+    return;
   } else {
     funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry =
         enterSymbol(funtionNameNode->semantic_value.identifierSemanticValue.identifierName, symbol_attr);

@@ -110,7 +110,7 @@ void printType(DATA_TYPE type) {
 void printTypeDescriptor(TypeDescriptor *des) {
   if (des->kind == SCALAR_TYPE_DESCRIPTOR) {
     printType(des->properties.dataType);
-    putchar(' ');
+    // putchar(' ');
   } else if (des->kind == ARRAY_TYPE_DESCRIPTOR) {
     printType(des->properties.arrayProperties.elementType);
     putchar(' ');
