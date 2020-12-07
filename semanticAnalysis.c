@@ -94,6 +94,13 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
       printf("use of undeclared identifier '%s'\n", name2);
       break;
     }
+    case VOID_VARIABLE: {
+      printf("variable has incomplete type '%s' (aka '", name2);
+      SymbolTableEntry* table_entry = retrieveSymbol(name2);
+      printTypeDescriptor(table_entry->attribute->attr.typeDescriptor);
+      printf("')\n");
+      break;
+    }
     case TOO_FEW_ARGUMENTS: {
       printf("no matching function for call '%s'\n", name2);
       break;
@@ -116,6 +123,13 @@ void printErrorMsgSpecial(AST_NODE* node1, char* name2, ErrorMsgKind errorMsgKin
     }
     case ARRAY_SIZE_NEGATIVE: {
       printf("'%s' declared as an array with a negative size\n", name2);
+      break;
+    }
+    case RETURN_ARRAY: {
+      printf("function cannot return array type '%s' (aka '", name2);
+      SymbolTableEntry* table_entry = retrieveSymbol(name2);
+      printTypeDescriptor(table_entry->attribute->attr.typeDescriptor);
+      printf("')\n");
       break;
     }
     case NOT_FUNCTION_NAME: {
@@ -169,6 +183,10 @@ void printErrorMsg(AST_NODE* node, ErrorMsgKind errorMsgKind) {
     }
     case INITIALIZER_NOT_CONSTANT: {
       puts("initializer element is not a compile-time constant");
+      break;
+    }
+    case TRY_TO_INIT_ARRAY: {
+      puts("array initializer must be an initializer list or wide string literal");
       break;
     }
     default: {
@@ -299,6 +317,10 @@ int processIdNode(AST_NODE* node, TypeDescriptor** type_descriptor, int is_type_
     }
   } else {
     (*type_descriptor)->kind = ARRAY_TYPE_DESCRIPTOR;
+    if (node->semantic_value.identifierSemanticValue.kind == WITH_INIT_ID) {
+      printErrorMsg(node, TRY_TO_INIT_ARRAY);
+      return 0;
+    }
     if (node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
       int dimension = type_entry->attribute->attr.typeDescriptor->properties.arrayProperties.dimension;
       for (int i = 0; i < dimension; i++) {
@@ -328,7 +350,10 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
   SymbolTableEntry* type_entry = NULL;
   int is_type_array = 0;
   data_type = getDeclareType(node, &type_entry, &is_type_array);
-
+  if (data_type == VOID_TYPE && isVariableOrTypeAttribute == VARIABLE_ATTRIBUTE) {
+    printErrorMsgSpecial(node, node->semantic_value.identifierSemanticValue.identifierName, VOID_VARIABLE);
+    return;
+  }
   node = node->rightSibling;
   while (node) {
     TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
@@ -380,7 +405,7 @@ void declareFunction(AST_NODE* idNode) {
   AST_NODE* parameterListNode = funtionNameNode->rightSibling;
 
   if (is_type_array) {
-    printErrorMsg(idNode, RETURN_ARRAY);
+    printErrorMsgSpecial(idNode, idNode->semantic_value.identifierSemanticValue.identifierName, RETURN_ARRAY);
   }
 
   if (declaredLocally(funtionNameNode->semantic_value.identifierSemanticValue.identifierName)) {
