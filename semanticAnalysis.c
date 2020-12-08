@@ -494,10 +494,12 @@ void checkIfStmt(AST_NODE* ifNode) {
 
 void checkWriteFunction(AST_NODE* functionCallNode) {
   AST_NODE* functionIdNode = functionCallNode->child;
+  if (functionIdNode->rightSibling->nodeType == NUL_NODE) {
+    printErrorMsgSpecial(functionCallNode, "write", TOO_FEW_ARGUMENTS);
+    return;
+  }
   AST_NODE* parameterNode = functionIdNode->rightSibling->child;
-  if (parameterNode == NULL) {
-    printErrorMsgSpecial(parameterNode, "write", TOO_FEW_ARGUMENTS);
-  } else if (parameterNode->rightSibling != NULL) {
+  if (parameterNode->rightSibling != NULL) {
     printErrorMsgSpecial(parameterNode, "write", TOO_MANY_ARGUMENTS);
   } else {
     processExprNode(parameterNode);
