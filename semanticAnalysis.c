@@ -424,7 +424,7 @@ void declareFunction(AST_NODE* idNode) {
   }
   openScope();
   processParameterList(parameterListNode, &(symbol_attr->attr.functionSignature->parameterList), &(symbol_attr->attr.functionSignature->parametersCount));
-  funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->parameterList = symbol_attr->attr.functionSignature->parameterList;
+  funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->parameterList = symbol_attr->attr.functionSignature->parameterList;  
   processBlockNode(parameterListNode->rightSibling);
   closeScope();
 }
@@ -1001,8 +1001,12 @@ void processConstValueNode(AST_NODE* constValueNode) {
 }
 
 void checkReturnStmt(AST_NODE* returnNode) {
-  AST_NODE* funtionNameNode = returnNode->parent->parent->leftmostSibling->rightSibling;
-  DATA_TYPE returnType = funtionNameNode->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->returnType;
+  AST_NODE* functionDeclNode = returnNode;
+  while(functionDeclNode->nodeType != DECLARATION_NODE && functionDeclNode->semantic_value.declSemanticValue.kind != FUNCTION_DECL) {
+    functionDeclNode = functionDeclNode->parent;
+  }
+  fprintf(stderr, "%s", functionDeclNode->child->rightSibling->semantic_value.identifierSemanticValue.identifierName);
+  DATA_TYPE returnType = retrieveSymbol(functionDeclNode->child->rightSibling->semantic_value.identifierSemanticValue.identifierName)->attribute->attr.functionSignature->returnType;
   // return statement without expression
   if (!returnNode->child)
     return;
