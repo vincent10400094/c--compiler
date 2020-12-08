@@ -1005,7 +1005,6 @@ void checkReturnStmt(AST_NODE* returnNode) {
   while(functionDeclNode->nodeType != DECLARATION_NODE && functionDeclNode->semantic_value.declSemanticValue.kind != FUNCTION_DECL) {
     functionDeclNode = functionDeclNode->parent;
   }
-  fprintf(stderr, "%s", functionDeclNode->child->rightSibling->semantic_value.identifierSemanticValue.identifierName);
   DATA_TYPE returnType = retrieveSymbol(functionDeclNode->child->rightSibling->semantic_value.identifierSemanticValue.identifierName)->attribute->attr.functionSignature->returnType;
   // return statement without expression
   if (!returnNode->child)
