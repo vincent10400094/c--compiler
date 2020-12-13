@@ -1,4 +1,4 @@
-Additional errors we check:
+Additional errors we check: (We have also done bonus errors specified in spec)
 
 1. SYMBOL_REDECLARE_DIFFERENT_KIND:
 
@@ -10,6 +10,10 @@ Additional errors we check:
 
 2. VOID_VARIABLE:
 
+    example:
+        typedef void VOID;
+        VOID a;
+    error: variable has incomplete type 'VOID' (aka 'void')
 
 3. IS_TYPE_NOT_VARIABLE:
 
@@ -21,6 +25,10 @@ Additional errors we check:
 
 4. RETURN_ARRAY:
 
+    example:
+        typedef int A[2];
+        A function() {}
+    error: function cannot return array type 'A' (aka 'int [2]')
 
 5. ARRAY_SIZE_NOT_INT:
 
@@ -30,3 +38,10 @@ Additional errors we check:
     
     error: size of array has non-integer type 'float'
 
+6. NOT_FUNCTION_NAME
+   
+    example:
+        int a;
+        a();
+    error: called object type 'int' is not a function or function pointer
+   
