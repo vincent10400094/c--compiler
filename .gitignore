@@ -66,3 +66,6 @@ lex.yy.c
 # test data
 testdata/
 test.c
+
+# vscode
+.vscode/
