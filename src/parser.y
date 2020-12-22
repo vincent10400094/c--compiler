@@ -911,10 +911,9 @@ char *argv[];
      /* printGV(prog, NULL); */
      
      initializeSymbolTable();
-     
      semanticAnalysis(prog);
-     
      symbolTableEnd();
+     
      if (!g_anyErrorOccur) {
         printf("Parsing completed. No errors found.\n");
      }

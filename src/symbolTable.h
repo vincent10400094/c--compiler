@@ -79,6 +79,7 @@ typedef struct SymbolTable {
 
 extern SymbolTable* topSymbolTable;
 
+// functions for semantic check
 void initializeSymbolTable();
 void symbolTableEnd();
 SymbolTableEntry* retrieveSymbol(char* symbolName);
@@ -88,6 +89,12 @@ int declaredLocally(char* symbolName);
 void openScope();
 void closeScope();
 
+// functions for codeGen
+int currentScope();
+void pushTable();
+void popTable();
+
+// utility function
 void printAllTable();
 void printType(DATA_TYPE type);
 void printTypeDescriptor(TypeDescriptor* des);
