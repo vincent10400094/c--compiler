@@ -916,6 +916,8 @@ char *argv[];
      
      if (!g_anyErrorOccur) {
         printf("Parsing completed. No errors found.\n");
+        FILE *output = fopen("output.S", "w");
+        CodeGen(prog, output);
      }
   } /* main */
 

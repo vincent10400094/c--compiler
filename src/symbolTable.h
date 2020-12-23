@@ -36,6 +36,7 @@ typedef struct TypeDescriptor {
     DATA_TYPE dataType;               //kind: SCALAR_TYPE_DESCRIPTOR
     ArrayProperties arrayProperties;  //kind: ARRAY_TYPE_DESCRIPTOR
   } properties;
+  int offset;
 } TypeDescriptor;
 
 typedef struct Parameter {
