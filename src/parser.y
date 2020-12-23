@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include "header.h"
+#include "codeGen.h"
 int linenumber = 1;
 AST_NODE *prog;
 char *srcPath;

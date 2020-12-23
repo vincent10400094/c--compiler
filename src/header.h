@@ -163,5 +163,4 @@ typedef struct AST_NODE {
 
 AST_NODE *Allocate(AST_TYPE type);
 void semanticAnalysis(AST_NODE *root);
-void codeGen(AST_NODE *root);
 #endif
