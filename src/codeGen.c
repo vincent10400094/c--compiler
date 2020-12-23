@@ -12,7 +12,7 @@ int temp_reg_number = 0;
 
 void GenPrologue(char *function_name, FILE *fp);
 void GenEpilogue(char *function_name, FILE *fp);
-int GetReg(int type);
+int GetReg();
 int GetOffset();
 void GenSymbolDeclaration(AST_NODE *node, FILE *fp);
 void GenFunctionDeclaration(AST_NODE *node, FILE *fp);
@@ -25,20 +25,7 @@ void GenHead(AST_NODE *id_name_node);
 void CodeGen(AST_NODE *root, FILE *fp);
 void DoubleToHex(void *v, FILE *fp);
 
-int GetReg(int type) {
-    if (type == 0) {
-        if (save_reg_number > 11) {
-            return -1;
-        } else {
-            return save_reg_number++;
-        }
-    } else {
-        if (temp_reg_number > 6) {
-            return -1;
-        } else {
-            return temp_reg_number++;
-        }
-    }
+int GetReg() {
 }
 
 void GenSymbolDeclaration(AST_NODE *declaration_list_node, FILE *fp) {
