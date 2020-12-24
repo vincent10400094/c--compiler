@@ -29,6 +29,7 @@ int GenExpr(AST_NODE *expr_node, FILE *fp);
 void GenAssignment(AST_NODE *assignment_node, FILE *fp);
 void GenFunctionCall(AST_NODE *stmt_node, FILE *fp);
 void GenIfStmt(AST_NODE *stmt_node, FILE *fp);
+void GenWhileStmt(AST_NODE *stmt_node, FILE *fp);
 void symbolTableAdd(char *symbol_name);
 void GenHead(AST_NODE *id_name_node);
 void CodeGen(AST_NODE *root, FILE *fp);
@@ -193,6 +194,7 @@ void GenStatement(AST_NODE *stmt_node, FILE *fp) {
           break;
         }
         case WHILE_STMT: {
+          GenWhileStmt(stmt_node, fp);
           break;
         }
         case RETURN_STMT: {
@@ -327,16 +329,28 @@ void GenIfStmt(AST_NODE *stmt_node, FILE *fp) {
   FreeReg(test_reg);
   int label_number = max_label_number++;
   if (test_node->rightSibling->rightSibling->nodeType != NUL_NODE) {  // if-else statement
-    fprintf(fp, "\tbeqz\tx%d,Lelse%d\n", test_reg, label_number);
+    fprintf(fp, "\tbeqz\tx%d,_Lelse%d\n", test_reg, label_number);
     GenStatement(test_node->rightSibling, fp);
-    fprintf(fp, "\tj\tLexit%d\n", label_number);
-    fprintf(fp, "Lelse%d:\n", label_number);
+    fprintf(fp, "\tj\t_Lexit%d\n", label_number);
+    fprintf(fp, "_Lelse%d:\n", label_number);
     GenStatement(test_node->rightSibling->rightSibling, fp);
   } else {  // if-only statement
-    fprintf(fp, "\tbeqz\tx%d,Lexit%d\n", test_reg, label_number);
+    fprintf(fp, "\tbeqz\tx%d,_Lexit%d\n", test_reg, label_number);
     GenStatement(test_node->rightSibling, fp);
   }
-  fprintf(fp, "Lexit%d:\n", label_number);
+  fprintf(fp, "_Lexit%d:\n", label_number);
+}
+
+void GenWhileStmt(AST_NODE *stmt_node, FILE *fp) {
+  AST_NODE *test_node = stmt_node->child;
+  int label_number = max_label_number++;
+  fprintf(fp, "_Test%d:\n", label_number);
+  int test_reg = GenExpr(test_node, fp);
+  FreeReg(test_reg);
+  fprintf(fp, "\tbeqz\tx%d,_Lexit%d\n", test_reg, label_number);
+  GenStatement(test_node->rightSibling, fp);
+  fprintf(fp, "\tj\t_Test%d\n", label_number);
+  fprintf(fp, "_Lexit%d:\n", label_number);
 }
 
 void GenAssignment(AST_NODE *assignment_node, FILE *fp) {
