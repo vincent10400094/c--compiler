@@ -214,7 +214,7 @@ int LoadVariable(AST_NODE *id_node, FILE *fp) {
     tmp_reg = GetReg();
     fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, id_node->semantic_value.identifierSemanticValue.identifierName);
     reg = GetReg();
-    fprintf(fp, "\tlw\tx%d,0(%d)\n", reg, tmp_reg);
+    fprintf(fp, "\tlw\tx%d,0(x%d)\n", reg, tmp_reg);
     FreeReg(tmp_reg);
   } else {  // local variable
     reg = GetReg();
@@ -299,6 +299,7 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
         break;
       }
       case UNARY_OP_NEGATIVE: {
+        fprintf(fp, "\tsub\t%d,x0,x%d\n", rs1, rs1);
         break;
       }
       case UNARY_OP_POSITIVE: {
@@ -319,8 +320,16 @@ void GenFunctionCall(AST_NODE *stmt_node, FILE *fp) {
 }
 
 void GenAssignment(AST_NODE *assignment_node, FILE *fp) {
-  int rs = GenExpr(assignment_node->child->rightSibling, fp);
-  fprintf(fp, "\tsw\tx%d,-%d(fp)\n", rs, assignment_node->child->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
+  AST_NODE *id_node = assignment_node->child;
+  int rs = GenExpr(id_node->rightSibling, fp);
+  if (id_node->semantic_value.identifierSemanticValue.symbolTableEntry->scope == 0) {
+    int tmp_reg = GetReg();
+    fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, id_node->semantic_value.identifierSemanticValue.identifierName);
+    fprintf(fp, "\tsw\tx%d,0(x%d)\n", rs, tmp_reg);
+    FreeReg(tmp_reg);
+  } else {
+    fprintf(fp, "\tsw\tx%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
+  }
   FreeReg(rs);
 }
 
