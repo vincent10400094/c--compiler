@@ -139,22 +139,22 @@ void GenSymbolDeclaration(AST_NODE *declaration_list_node, FILE *fp) {
 
 void GenPrologue(char *function_name, FILE *fp) {
   fprintf(fp,
-          ".text\nsd ra,0(sp)\nsd fp,-8(sp)\nadd fp,sp,-8\nadd sp,sp,-16\nla ra,_frameSize_%s\nlw ra,0(ra)\n\
-sub sp,sp,ra\nsd t0,8(sp)\nsd t1,16(sp)\nsd t2,24(sp)\nsd t3,32(sp)\nsd t4,40(sp)\nsd t5,48(sp)\n\
-sd t6,56(sp)\nsd s2,64(sp)\nsd s3,72(sp)\nsd s4,80(sp)\nsd s5,88(sp)\nsd s6,96(sp)\nsd s7,104(sp)\n\
-sd s8,112(sp)\nsd s9,120(sp)\nsd s10,128(sp)\nsd s11,136(sp)\nsd fp,144(sp)\n\
-fsw ft0,152(sp)\nfsw ft1,156(sp)\nfsw ft2,160(sp)\nfsw ft3,164(sp)\nfsw ft4,168(sp)\nfsw ft5,172(sp)\n\
-fsw ft6,176(sp)\nfsw ft7,180(sp)\n",
+          ".text\n\tsd ra,0(sp)\n\tsd fp,-8(sp)\n\tadd fp,sp,-8\n\tadd sp,sp,-16\n\tla ra,_frameSize_%s\n\tlw ra,0(ra)\n\t\
+sub sp,sp,ra\n\tsd t0,8(sp)\n\tsd t1,16(sp)\n\tsd t2,24(sp)\n\tsd t3,32(sp)\n\tsd t4,40(sp)\n\tsd t5,48(sp)\n\t\
+sd t6,56(sp)\n\tsd s2,64(sp)\n\tsd s3,72(sp)\n\tsd s4,80(sp)\n\tsd s5,88(sp)\n\tsd s6,96(sp)\n\tsd s7,104(sp)\n\t\
+sd s8,112(sp)\n\tsd s9,120(sp)\n\tsd s10,128(sp)\n\tsd s11,136(sp)\n\tsd fp,144(sp)\n\t\
+fsw ft0,152(sp)\n\tfsw ft1,156(sp)\n\tfsw ft2,160(sp)\n\tfsw ft3,164(sp)\n\tfsw ft4,168(sp)\n\tfsw ft5,172(sp)\n\t\
+fsw ft6,176(sp)\n\tfsw ft7,180(sp)\n",
           function_name);
 }
 
 void GenEpilogue(char *function_name, FILE *fp) {
   fprintf(fp,
-          ".text\nld t0,8(sp)\nld t1,16(sp)\nld t2,24(sp)\nld t3,32(sp)\nld t4,40(sp)\nld t5,48(sp)\n\
-ld t6,56(sp)\nld s2,64(sp)\nld s3,72(sp)\nld s4,80(sp)\nld s5,88(sp)\nld s6,96(sp)\nld s7,104(sp)\n\
-ld s8,112(sp)\nld s9,120(sp)\nld s10,128(sp)\nld s11,136(sp)\nld fp,144(sp)\n\
-flw ft0,152(sp)\nflw ft1,156(sp)\nflw ft2,160(sp)\nflw ft3,164(sp)\nflw ft4,168(sp)\nflw ft5,172(sp)\n\
-flw ft6,176(sp)\nflw ft7,180(sp)\nld ra,8(fp)\nmv sp,fp\nadd sp,sp,8\nld fp,0(fp)\njr ra\n.data\n");
+          ".text\n\tld t0,8(sp)\n\tld t1,16(sp)\n\tld t2,24(sp)\n\tld t3,32(sp)\n\tld t4,40(sp)\n\tld t5,48(sp)\n\t\
+ld t6,56(sp)\n\tld s2,64(sp)\n\tld s3,72(sp)\n\tld s4,80(sp)\n\tld s5,88(sp)\n\tld s6,96(sp)\n\tld s7,104(sp)\n\t\
+ld s8,112(sp)\n\tld s9,120(sp)\n\tld s10,128(sp)\n\tld s11,136(sp)\n\tld fp,144(sp)\n\t\
+flw ft0,152(sp)\n\tflw ft1,156(sp)\n\tflw ft2,160(sp)\n\tflw ft3,164(sp)\n\tflw ft4,168(sp)\n\tflw ft5,172(sp)\n\t\
+flw ft6,176(sp)\n\tflw ft7,180(sp)\n\tld ra,8(fp)\n\tmv sp,fp\n\tadd sp,sp,8\n\tld fp,0(fp)\n\tjr ra\n.data\n");
   fprintf(fp, "_frameSize_%s: .word %d\n", function_name, 180 + AR_offset);
   AR_offset = 4;
 }
