@@ -284,6 +284,8 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
         break;
       }
       case BINARY_OP_EQ: {
+        fprintf(fp, "\tsub x%d, x%d, x%d\n", rd, rs1, rs2);
+        fprintf(fp, "\tseqz x%d, x%d\n", rd, rd);
         break;
       }
       case BINARY_OP_NE: {
@@ -293,6 +295,7 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
         break;
       }
       case BINARY_OP_GT: {
+        fprintf(fp, "\tsgt x%d, x%d, x%d\n", rd, rs1, rs2);
         break;
       }
       case BINARY_OP_LE: {
