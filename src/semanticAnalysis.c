@@ -574,6 +574,7 @@ void checkFunctionCall(AST_NODE* functionCallNode) {
   } else {
     AST_NODE* parameterNode = parameterListNode->child;
     Parameter* parameter = table_entry->attribute->attr.functionSignature->parameterList;
+    functionIdNode->semantic_value.identifierSemanticValue.symbolTableEntry = table_entry;
     while (parameter) {
       if (parameterNode == NULL || parameterNode->nodeType == NUL_NODE) {
         printErrorMsgSpecial(parameterListNode, functionIdNode->semantic_value.identifierSemanticValue.identifierName, TOO_FEW_ARGUMENTS);
