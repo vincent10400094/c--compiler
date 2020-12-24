@@ -6,7 +6,7 @@
 #include "header.h"
 #include "symbolTable.h"
 
-int AR_offset = 4; //5-7, 18-31,
+int AR_offset = 4;  //5-7, 18-31,
 
 int int_reg[32];
 int float_reg[8];
@@ -24,7 +24,7 @@ void GenBlockNode(AST_NODE *block_node, FILE *fp);
 void GenStatement(AST_NODE *statement_list_node, FILE *fp);
 void GenFunctionDeclaration(AST_NODE *declaration_node, FILE *fp);
 void GenSymbolReference();
-void GenExpr();
+int GenExpr(AST_NODE *expr_node, FILE *fp);
 void GenAssignment(AST_NODE *assignment_node, FILE *fp);
 void PassParameter();
 void GenFunctionCall(AST_NODE *stmt_node, FILE *fp);
@@ -32,41 +32,41 @@ void symbolTableAdd(char *symbol_name);
 void GenHead(AST_NODE *id_name_node);
 void CodeGen(AST_NODE *root, FILE *fp);
 void DoubleToHex(void *v, FILE *fp);
+int LoadVariable(AST_NODE *id_node, FILE *fp);
 
 int GetReg() {
-    for (int i = 5; i <= 7; i++) {
-        if (int_reg[i] == 0) {
-            int_reg[i] = 1;
-            return i;
-        }
+  for (int i = 5; i <= 7; i++) {
+    if (int_reg[i] == 0) {
+      int_reg[i] = 1;
+      return i;
     }
-    for (int i = 18; i <= 31; i++) {
-        if (int_reg[i] == 0) {
-            int_reg[i] = 1;
-            return i;
-        }
+  }
+  for (int i = 18; i <= 31; i++) {
+    if (int_reg[i] == 0) {
+      int_reg[i] = 1;
+      return i;
     }
-    return -1;
+  }
+  return -1;
 }
 
 void FreeReg(int reg_number) {
-    int_reg[reg_number] = 0;
+  int_reg[reg_number] = 0;
 }
 
 int GetFloatReg() {
-    for (int i = 0; i < 8; i++) {
-        if (float_reg[i] == 0) {
-            float_reg[i] = 1;
-            return i;
-        }
+  for (int i = 0; i < 8; i++) {
+    if (float_reg[i] == 0) {
+      float_reg[i] = 1;
+      return i;
     }
-    return -1;
+  }
+  return -1;
 }
 
 void FreeFloatReg(int reg_number) {
-    float_reg[reg_number] = 0;
+  float_reg[reg_number] = 0;
 }
-
 
 int GetOffset() {
   return AR_offset;
@@ -84,6 +84,7 @@ void AllocateSymbol(SymbolTableEntry *entry, int size) {
 
 void GenSymbolDeclaration(AST_NODE *declaration_list_node, FILE *fp) {
   AST_NODE *declaration_node = declaration_list_node->child;
+  fprintf(fp, ".data\n");
   while (declaration_node) {
     assert(declaration_node->nodeType == DECLARATION_NODE);
     if (declaration_node->semantic_value.declSemanticValue.kind == VARIABLE_DECL) {
@@ -140,22 +141,22 @@ void GenSymbolDeclaration(AST_NODE *declaration_list_node, FILE *fp) {
 
 void GenPrologue(char *function_name, FILE *fp) {
   fprintf(fp,
-          ".text\nsd ra,0(sp)\nsd fp,-8(sp)\nadd fp,sp,-8\nadd sp,sp,-16\nla ra,_frameSize_%s\nlw ra,0(ra)\n\
-sub sp,sp,ra\nsd t0,8(sp)\nsd t1,16(sp)\nsd t2,24(sp)\nsd t3,32(sp)\nsd t4,40(sp)\nsd t5,48(sp)\n\
-sd t6,56(sp)\nsd s2,64(sp)\nsd s3,72(sp)\nsd s4,80(sp)\nsd s5,88(sp)\nsd s6,96(sp)\nsd s7,104(sp)\n\
-sd s8,112(sp)\nsd s9,120(sp)\nsd s10,128(sp)\nsd s11,136(sp)\nsd fp,144(sp)\n\
-fsw ft0,152(sp)\nfsw ft1,156(sp)\nfsw ft2,160(sp)\nfsw ft3,164(sp)\nfsw ft4,168(sp)\nfsw ft5,172(sp)\n\
-fsw ft6,176(sp)\nfsw ft7,180(sp)\n",
+          ".text\n\tsd ra,0(sp)\n\tsd fp,-8(sp)\n\tadd fp,sp,-8\n\tadd sp,sp,-16\n\tla ra,_frameSize_%s\n\tlw ra,0(ra)\n\t\
+sub sp,sp,ra\n\tsd t0,8(sp)\n\tsd t1,16(sp)\n\tsd t2,24(sp)\n\tsd t3,32(sp)\n\tsd t4,40(sp)\n\tsd t5,48(sp)\n\t\
+sd t6,56(sp)\n\tsd s2,64(sp)\n\tsd s3,72(sp)\n\tsd s4,80(sp)\n\tsd s5,88(sp)\n\tsd s6,96(sp)\n\tsd s7,104(sp)\n\t\
+sd s8,112(sp)\n\tsd s9,120(sp)\n\tsd s10,128(sp)\n\tsd s11,136(sp)\n\tsd fp,144(sp)\n\t\
+fsw ft0,152(sp)\n\tfsw ft1,156(sp)\n\tfsw ft2,160(sp)\n\tfsw ft3,164(sp)\n\tfsw ft4,168(sp)\n\tfsw ft5,172(sp)\n\t\
+fsw ft6,176(sp)\n\tfsw ft7,180(sp)\n",
           function_name);
 }
 
 void GenEpilogue(char *function_name, FILE *fp) {
   fprintf(fp,
-          ".text\nld t0,8(sp)\nld t1,16(sp)\nld t2,24(sp)\nld t3,32(sp)\nld t4,40(sp)\nld t5,48(sp)\n\
-ld t6,56(sp)\nld s2,64(sp)\nld s3,72(sp)\nld s4,80(sp)\nld s5,88(sp)\nld s6,96(sp)\nld s7,104(sp)\n\
-ld s8,112(sp)\nld s9,120(sp)\nld s10,128(sp)\nld s11,136(sp)\nld fp,144(sp)\n\
-flw ft0,152(sp)\nflw ft1,156(sp)\nflw ft2,160(sp)\nflw ft3,164(sp)\nflw ft4,168(sp)\nflw ft5,172(sp)\n\
-flw ft6,176(sp)\nflw ft7,180(sp)\nld ra,8(fp)\nmv sp,fp\nadd sp,sp,8\nld fp,0(fp)\njr ra\n.data\n");
+          ".text\n\tld t0,8(sp)\n\tld t1,16(sp)\n\tld t2,24(sp)\n\tld t3,32(sp)\n\tld t4,40(sp)\n\tld t5,48(sp)\n\t\
+ld t6,56(sp)\n\tld s2,64(sp)\n\tld s3,72(sp)\n\tld s4,80(sp)\n\tld s5,88(sp)\n\tld s6,96(sp)\n\tld s7,104(sp)\n\t\
+ld s8,112(sp)\n\tld s9,120(sp)\n\tld s10,128(sp)\n\tld s11,136(sp)\n\tld fp,144(sp)\n\t\
+flw ft0,152(sp)\n\tflw ft1,156(sp)\n\tflw ft2,160(sp)\n\tflw ft3,164(sp)\n\tflw ft4,168(sp)\n\tflw ft5,172(sp)\n\t\
+flw ft6,176(sp)\n\tflw ft7,180(sp)\n\tld ra,8(fp)\n\tmv sp,fp\n\tadd sp,sp,8\n\tld fp,0(fp)\n\tjr ra\n.data\n");
   fprintf(fp, "_frameSize_%s: .word %d\n", function_name, 180 + AR_offset);
   AR_offset = 4;
 }
@@ -207,20 +208,167 @@ void GenStatement(AST_NODE *statement_list_node, FILE *fp) {
   }
 }
 
-void GenFunctionCall(AST_NODE *stmt_node, FILE *fp) {
-    AST_NODE *function_id_node = stmt_node->child;
-    if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "write") == 0) {
+// return value: register number that holds the value
+int LoadVariable(AST_NODE *id_node, FILE *fp) {
+  SymbolTableEntry *entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+  int tmp_reg, reg;
+  if (entry->scope == 0) {  // static variable
+    tmp_reg = GetReg();
+    fprintf(fp, "\tla x%d, _%s\n", tmp_reg, id_node->semantic_value.identifierSemanticValue.identifierName);
+    reg = GetReg();
+    fprintf(fp, "\tlw x%d, 0(%d)\n", reg, tmp_reg);
+    FreeReg(tmp_reg);
+  } else {  // local variable
+    reg = GetReg();
+    fprintf(fp, "\tlw x%d, -%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
+  }
+  return reg;
+}
 
-    } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "read") == 0) {
-        
-    } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "fread") == 0) {
-        
-    } else {
-
+// return value: register number that holds the value
+int GenExpr(AST_NODE *expr_node, FILE *fp) {
+  if (expr_node->nodeType == CONST_VALUE_NODE) {
+    if (expr_node->semantic_value.const1->const_type == INTEGERC) {
+      int reg = GetReg();
+      fprintf(fp, "\tli x%d, %d\n", reg, expr_node->semantic_value.const1->const_u.intval);
+      return reg;
+    } else if (expr_node->semantic_value.const1->const_type == FLOATC) {
     }
+  } else if (expr_node->nodeType == IDENTIFIER_NODE) {
+    return LoadVariable(expr_node, fp);
+  } else if (expr_node->nodeType == STMT_NODE) {
+    // gen function call
+    if (expr_node->child->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->returnType == INT_TYPE ||
+        !strcmp(expr_node->child->semantic_value.identifierSemanticValue.identifierName, "read")) {
+      GenFunctionCall(expr_node, fp);
+      int reg = GetReg();
+      fprintf(fp, "\tmv x%d, a0\n", reg);
+      expr_node->dataType = INT_TYPE;
+      return reg;
+    } else {
+      GenFunctionCall(expr_node, fp);
+      int reg = GetFloatReg();
+      fprintf(fp, "\tfmv.s ft%d, fa0\n", reg);
+      expr_node->dataType = FLOAT_TYPE;
+      return reg;
+    }
+  }
+  EXPRSemanticValue *semanticValue = &(expr_node->semantic_value.exprSemanticValue);
+  if (semanticValue->kind == BINARY_OPERATION) {  // binary operation
+    int rs1 = GenExpr(expr_node->child, fp);
+    int rs2 = GenExpr(expr_node->child->rightSibling, fp);
+    int rd = GetReg();
+    switch (semanticValue->op.binaryOp) {
+      case BINARY_OP_ADD: {
+        fprintf(fp, "\tadd x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      case BINARY_OP_SUB: {
+        fprintf(fp, "\tsub x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      case BINARY_OP_MUL: {
+        fprintf(fp, "\tmul x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      case BINARY_OP_DIV: {
+        fprintf(fp, "\tdiv x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      case BINARY_OP_EQ: {
+        fprintf(fp, "\tdiv x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      case BINARY_OP_NE: {
+        fprintf(fp, "\tdiv x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      case BINARY_OP_GE: {
+        fprintf(fp, "\tdiv x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      case BINARY_OP_GT: {
+        fprintf(fp, "\tdiv x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      case BINARY_OP_LE: {
+        fprintf(fp, "\tdiv x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      case BINARY_OP_LT: {
+        fprintf(fp, "\tdiv x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      case BINARY_OP_AND: {
+        fprintf(fp, "\tand x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      case BINARY_OP_OR: {
+        fprintf(fp, "\tor x%d, x%d, x%d\n", rd, rs1, rs2);
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+    FreeReg(rs1);
+    FreeReg(rs2);
+    return rd;
+  } else {  // unary operation
+    int rs1 = GenExpr(expr_node->child, fp);
+    switch (semanticValue->op.unaryOp) {
+      case UNARY_OP_LOGICAL_NEGATION: {
+        break;
+      }
+      case UNARY_OP_NEGATIVE: {
+        break;
+      }
+      case UNARY_OP_POSITIVE: {
+        break;
+      }
+    }
+    return rs1;
+  }
+}
+
+void PassParameter() {
+}
+
+void GenFunctionCall(AST_NODE *stmt_node, FILE *fp) {
+  AST_NODE *function_id_node = stmt_node->child;
+  if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "write") == 0) {
+    AST_NODE *parameter_node = function_id_node->rightSibling->child;
+    if (parameter_node->dataType == CONST_STRING_TYPE) {
+      fprintf(fp, ".LC0: .string \"%s\n\\000\"\n.align 4", parameter_node->semantic_value.const1->const_u.sc);
+      int rs = GetReg();
+      fprintf(fp, "\tlui x%d, %%hi(.LC0)\n", rs);
+      fprintf(fp, "\taddi a0, x%d, %%lo(.LC0)\n", rs);
+      fprintf(fp, "\tcall _write_str\n");
+      FreeReg(rs);
+    } else {
+      int rs = GenExpr(parameter_node, fp);
+      if (parameter_node->dataType == INT_TYPE) {
+        fprintf(fp, "\tmv a0, x%d\n", rs);
+        fprintf(fp, "\tjal _write_int\n");
+      } else {
+        fprintf(fp, "\tfmv.s fa0, ft%d\n", rs);
+        fprintf(fp, "\tjal _write_float\n");
+      }
+      FreeReg(rs);
+    }
+  } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "read") == 0) {
+    fprintf(fp, "\tcall _read_int\n");
+  } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "fread") == 0) {
+    fprintf(fp, "\tcall _read_float\n");
+  } else {
+      
+  }
 }
 
 void GenAssignment(AST_NODE *assignment_node, FILE *fp) {
+  int rs = GenExpr(assignment_node->child->rightSibling, fp);
+  fprintf(fp, "\tsw x%d, -%d(fp)\n", rs, assignment_node->child->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
+  FreeReg(rs);
 }
 
 void GenFunctionDeclaration(AST_NODE *declaration_node, FILE *fp) {
