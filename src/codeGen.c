@@ -22,7 +22,7 @@ void GenStatement(AST_NODE *statement_list_node, FILE *fp);
 void GenFunctionDeclaration(AST_NODE *declaration_node, FILE *fp);
 void GenSymbolReference();
 void GenExpr();
-void GenAssignment();
+void GenAssignment(AST_NODE *assignment_node, FILE *fp);
 void symbolTableAdd(char *symbol_name);
 void GenHead(AST_NODE *id_name_node);
 void CodeGen(AST_NODE *root, FILE *fp);
@@ -41,6 +41,7 @@ void AllocateSymbol(SymbolTableEntry *entry, int size) {
   entry->attribute->attr.typeDescriptor->offset = GetOffset();
   AR_offset += size;
 }
+
 void GenSymbolDeclaration(AST_NODE *declaration_list_node, FILE *fp) {
   AST_NODE *declaration_node = declaration_list_node->child;
   while (declaration_node) {
@@ -57,7 +58,7 @@ void GenSymbolDeclaration(AST_NODE *declaration_list_node, FILE *fp) {
               } else {
                 AllocateSymbol(id_node->semantic_value.identifierSemanticValue.symbolTableEntry, 4);
               }
-            } else if (id_node->semantic_value.identifierSemanticValue.kind == WITH_INIT_ID){
+            } else if (id_node->semantic_value.identifierSemanticValue.kind == WITH_INIT_ID) {
               if (currentScope() == 0) {
                 AST_NODE *const_node = id_node->child;
                 if (const_node->semantic_value.const1->const_type == INTEGERC) {
@@ -125,10 +126,47 @@ void GenBlockNode(AST_NODE *block_node, FILE *fp) {
     if (node->nodeType == VARIABLE_DECL_LIST_NODE) {
       GenSymbolDeclaration(node, fp);
     } else if (node->nodeType == STMT_LIST_NODE) {
-      //   GenStatement(node, fp);
+      GenStatement(node, fp);
     }
     node = node->rightSibling;
   }
+}
+
+void GenStatement(AST_NODE *statement_list_node, FILE *fp) {
+  AST_NODE *stmt_node = statement_list_node->child;
+  while (stmt_node) {
+    if (stmt_node->nodeType == STMT_NODE) {
+      switch (stmt_node->semantic_value.stmtSemanticValue.kind) {
+        case ASSIGN_STMT: {
+          GenAssignment(stmt_node, fp);
+          break;
+        }
+        case IF_STMT: {
+          break;
+        }
+        case FOR_STMT: {
+          break;
+        }
+        case FUNCTION_CALL_STMT: {
+          break;
+        }
+        case WHILE_STMT: {
+          break;
+        }
+        case RETURN_STMT: {
+          break;
+        }
+      }
+    } else if (stmt_node->nodeType == BLOCK_NODE) {
+      pushTable();
+      GenBlockNode(stmt_node, fp);
+      popTable();
+    }
+    stmt_node = stmt_node->rightSibling;
+  }
+}
+
+void GenAssignment(AST_NODE *assignment_node, FILE *fp) {
 }
 
 void GenFunctionDeclaration(AST_NODE *declaration_node, FILE *fp) {
@@ -143,6 +181,7 @@ void GenFunctionDeclaration(AST_NODE *declaration_node, FILE *fp) {
   popTable();
   GenEpilogue(function_id_node->semantic_value.identifierSemanticValue.identifierName, fp);
 }
+
 void CodeGen(AST_NODE *root, FILE *fp) {
   AST_NODE *node = root->child;
   while (node) {
