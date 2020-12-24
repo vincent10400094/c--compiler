@@ -26,6 +26,7 @@ void GenFunctionDeclaration(AST_NODE *declaration_node, FILE *fp);
 void GenSymbolReference();
 void GenExpr();
 void GenAssignment(AST_NODE *assignment_node, FILE *fp);
+void PassParameter();
 void GenFunctionCall(AST_NODE *stmt_node, FILE *fp);
 void symbolTableAdd(char *symbol_name);
 void GenHead(AST_NODE *id_name_node);
@@ -215,7 +216,7 @@ void GenFunctionCall(AST_NODE *stmt_node, FILE *fp) {
     } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "fread") == 0) {
         
     } else {
-        
+
     }
 }
 
