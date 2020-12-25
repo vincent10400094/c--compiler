@@ -55,7 +55,6 @@ dkms.conf
 .DS_Store
 *.pdf
 *.gv
-*.S
 *.s
 
 # Output files

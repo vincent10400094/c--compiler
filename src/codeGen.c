@@ -250,7 +250,7 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
       //   fprintf(stderr, "hihi\n");
       GenFunctionCall(expr_node, fp);
       int reg = GetReg();
-      fprintf(fp, "\tmv x%d, a0\n", reg);
+      fprintf(fp, "\tmv\tx%d,a0\n", reg);
       expr_node->dataType = INT_TYPE;
       return reg;
     } else {
