@@ -211,9 +211,7 @@ void GenStatement(AST_NODE *stmt_node, FILE *fp) {
       }
     }
   } else if (stmt_node->nodeType == BLOCK_NODE) {
-    // pushTable();
     GenBlockNode(stmt_node, fp);
-    // popTable();
   }
 }
 
@@ -267,6 +265,8 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
   if (semanticValue->kind == BINARY_OPERATION) {  // binary operation
     int rs1 = GenExpr(expr_node->child, fp);
     int rs2 = GenExpr(expr_node->child->rightSibling, fp);
+    FreeReg(rs1);
+    FreeReg(rs2);
     int rd = GetReg();
     switch (semanticValue->op.binaryOp) {
       case BINARY_OP_ADD: {
@@ -286,24 +286,31 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
         break;
       }
       case BINARY_OP_EQ: {
-        fprintf(fp, "\tsub x%d, x%d, x%d\n", rd, rs1, rs2);
-        fprintf(fp, "\tseqz x%d, x%d\n", rd, rd);
+        fprintf(fp, "\tsub\tx%d,x%d,x%d\n", rd, rs1, rs2);
+        fprintf(fp, "\tseqz\tx%d,x%d\n", rd, rd);
         break;
       }
       case BINARY_OP_NE: {
+        fprintf(fp, "\tsub\tx%d,x%d,x%d\n", rd, rs1, rs2);
+        fprintf(fp, "\tsnez\tx%d,x%d\n", rd, rd);
         break;
       }
       case BINARY_OP_GE: {
+        fprintf(fp, "\tslt\tx%d,x%d,x%d\n", rd, rs1, rs2);
+        fprintf(fp, "\txori\tx%d,x%d,1\n", rd, rd);
         break;
       }
       case BINARY_OP_GT: {
-        fprintf(fp, "\tsgt x%d, x%d, x%d\n", rd, rs1, rs2);
+        fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs1, rs2);
         break;
       }
       case BINARY_OP_LE: {
+        fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs1, rs2);
+        fprintf(fp, "\txori\tx%d,x%d,1\n", rd, rd);
         break;
       }
       case BINARY_OP_LT: {
+        fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs2, rs1);
         break;
       }
       case BINARY_OP_AND: {
@@ -318,13 +325,13 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
         break;
       }
     }
-    FreeReg(rs1);
-    FreeReg(rs2);
     return rd;
   } else {  // unary operation
     int rs1 = GenExpr(expr_node->child, fp);
     switch (semanticValue->op.unaryOp) {
       case UNARY_OP_LOGICAL_NEGATION: {
+        fprintf(fp, "\tseqz\tx%d,x%d\n", rs1, rs1);
+        fprintf(fp, "\txori\tx%d,x%d,1\n", rs1, rs1);
         break;
       }
       case UNARY_OP_NEGATIVE: {
@@ -332,6 +339,7 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
         break;
       }
       case UNARY_OP_POSITIVE: {
+        // do nothing
         break;
       }
     }
@@ -353,30 +361,30 @@ void GenFunctionCall(AST_NODE *stmt_node, FILE *fp) {
       fprintf(fp, ".SC%d: .string \"%s\\n\\000\"\n", sc_label_number, s);
       fprintf(fp, ".text\n");
       int rs = GetReg();
-      fprintf(fp, "\tlui x%d, %%hi(.SC%d)\n", rs, sc_label_number);
-      fprintf(fp, "\taddi a0, x%d, %%lo(.SC%d)\n", rs, sc_label_number);
+      fprintf(fp, "\tlui\tx%d,%%hi(.SC%d)\n", rs, sc_label_number);
+      fprintf(fp, "\taddi\ta0,x%d,%%lo(.SC%d)\n", rs, sc_label_number);
       sc_label_number++;
-      fprintf(fp, "\tcall _write_str\n");
+      fprintf(fp, "\tcall\t_write_str\n");
       FreeReg(rs);
     } else {
       int rs = GenExpr(parameter_node, fp);
       if (parameter_node->dataType == INT_TYPE) {
-        fprintf(fp, "\tmv a0, x%d\n", rs);
-        fprintf(fp, "\tjal _write_int\n");
+        fprintf(fp, "\tmv\ta0,x%d\n", rs);
+        fprintf(fp, "\tjal\t_write_int\n");
       } else {
-        fprintf(fp, "\tfmv.s fa0, ft%d\n", rs);
-        fprintf(fp, "\tjal _write_float\n");
+        fprintf(fp, "\tfmv.s fa0,ft%d\n", rs);
+        fprintf(fp, "\tjal\t_write_float\n");
       }
       FreeReg(rs);
     }
   } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "read") == 0) {
-    fprintf(fp, "\tcall _read_int\n");
+    fprintf(fp, "\tcall\t_read_int\n");
   } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "fread") == 0) {
-    fprintf(fp, "\tcall _read_float\n");
+    fprintf(fp, "\tcall\t_read_float\n");
   } else {
     // push parameter
     // push space for parameter
-    fprintf(fp, "\tjal _start_%s\n", function_id_node->semantic_value.identifierSemanticValue.identifierName);
+    fprintf(fp, "\tjal\t_start_%s\n", function_id_node->semantic_value.identifierSemanticValue.identifierName);
     // pop space for parameter
   }
 }
@@ -387,8 +395,8 @@ void GenReturnStmt(AST_NODE *return_node, FILE *fp) {
     function_decl_node = function_decl_node->parent;
   }
   int rs = GenExpr(return_node->child, fp);
-  fprintf(fp, "\tmv a0, x%d\n", rs);
-  fprintf(fp, "\tj _end_%s\n", function_decl_node->child->rightSibling->semantic_value.identifierSemanticValue.identifierName);
+  fprintf(fp, "\tmv\ta0,x%d\n", rs);
+  fprintf(fp, "\tj\t_end_%s\n", function_decl_node->child->rightSibling->semantic_value.identifierSemanticValue.identifierName);
   FreeReg(rs);
 }
 
@@ -442,9 +450,7 @@ void GenFunctionDeclaration(AST_NODE *declaration_node, FILE *fp) {
   AST_NODE *function_id_node = type_node->rightSibling;
   fprintf(fp, "_start_%s:\n", function_id_node->semantic_value.identifierSemanticValue.identifierName);
   GenPrologue(function_id_node->semantic_value.identifierSemanticValue.identifierName, fp);
-  pushTable();
   GenBlockNode(function_id_node->rightSibling->rightSibling, fp);
-  popTable();
   GenEpilogue(function_id_node->semantic_value.identifierSemanticValue.identifierName, fp);
 }
 
