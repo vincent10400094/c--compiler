@@ -314,10 +314,12 @@ int LoadVariable(AST_NODE *id_node, FILE *fp) {
 int GenExpr(AST_NODE *expr_node, FILE *fp) {
   if (expr_node->nodeType == CONST_VALUE_NODE) {
     if (expr_node->semantic_value.const1->const_type == INTEGERC) {
+      expr_node->dataType = INT_TYPE;
       int reg = GetReg();
       fprintf(fp, "\tli\tx%d,%d\n", reg, expr_node->semantic_value.const1->const_u.intval);
       return reg;
     } else if (expr_node->semantic_value.const1->const_type == FLOATC) {
+      expr_node->dataType = FLOAT_TYPE;
       fprintf(fp, ".data\n");
       float fconst = expr_node->semantic_value.const1->const_u.fval;
       int float_to_int = *(int *)&fconst;
@@ -332,6 +334,7 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
       return reg;
     }
   } else if (expr_node->nodeType == IDENTIFIER_NODE) {
+    expr_node->dataType = expr_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->properties.dataType;
     return LoadVariable(expr_node, fp);
   } else if (expr_node->nodeType == STMT_NODE) {
     // gen function call
@@ -406,23 +409,23 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
           break;
         }
         case BINARY_OP_AND: {
-          fprintf(fp, "\tbeqz x%d, .L%d\n", rs1, normal_label);
-          fprintf(fp, "\tbeqz x%d, .L%d\n", rs2, normal_label);
-          fprintf(fp, "\tli x%d, 1\n", rd);
-          fprintf(fp, "\tj .L%d\n", normal_label + 1);
+          fprintf(fp, "\tbeqz\tx%d, .L%d\n", rs1, normal_label);
+          fprintf(fp, "\tbeqz\tx%d, .L%d\n", rs2, normal_label);
+          fprintf(fp, "\tli\tx%d, 1\n", rd);
+          fprintf(fp, "\tj\t.L%d\n", normal_label + 1);
           fprintf(fp, ".L%d:\n", normal_label);
-          fprintf(fp, "\tli x%d, 0\n", rd);
+          fprintf(fp, "\tli\tx%d, 0\n", rd);
           fprintf(fp, ".L%d:\n", normal_label + 1);
           normal_label += 2;
           break;
         }
         case BINARY_OP_OR: {
-          fprintf(fp, "\tbnez x%d, .L%d\n", rs1, normal_label);
-          fprintf(fp, "\tbnez x%d, .L%d\n", rs2, normal_label);
-          fprintf(fp, "\tli x%d, 0\n", rd);
-          fprintf(fp, "\tj .L%d\n", normal_label + 1);
+          fprintf(fp, "\tbnez\tx%d, .L%d\n", rs1, normal_label);
+          fprintf(fp, "\tbnez\tx%d, .L%d\n", rs2, normal_label);
+          fprintf(fp, "\tli\tx%d, 0\n", rd);
+          fprintf(fp, "\tj\t.L%d\n", normal_label + 1);
           fprintf(fp, ".L%d:\n", normal_label);
-          fprintf(fp, "\tli x%d, 1\n", rd);
+          fprintf(fp, "\tli\tx%d, 1\n", rd);
           fprintf(fp, ".L%d:\n", normal_label + 1);
           normal_label += 2;
           break;
@@ -503,15 +506,15 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
           rd = GetReg();
           int zero = GetFloatReg();
           int tmp = GetReg();
-          fprintf(fp, "\tfmv.s.x ft%d, zero\n", zero);
-          fprintf(fp, "\tfeq.s x%d, ft%d, ft%d\n", tmp, rs1, zero);
-          fprintf(fp, "\tbnez x%d, .L%d\n", tmp, normal_label);
-          fprintf(fp, "\tfeq.s x%d, ft%d, ft%d\n", tmp, rs2, zero);
-          fprintf(fp, "\tbnez x%d, .L%d\n", tmp, normal_label);
-          fprintf(fp, "\tli x%d, 1\n", rd);
-          fprintf(fp, "\tj .L%d\n", normal_label + 1);
+          fprintf(fp, "\tfmv.s.x\tft%d, zero\n", zero);
+          fprintf(fp, "\tfeq.s\tx%d, ft%d, ft%d\n", tmp, rs1, zero);
+          fprintf(fp, "\tbnez\tx%d, .L%d\n", tmp, normal_label);
+          fprintf(fp, "\tfeq.s\tx%d, ft%d, ft%d\n", tmp, rs2, zero);
+          fprintf(fp, "\tbnez\tx%d, .L%d\n", tmp, normal_label);
+          fprintf(fp, "\tli\tx%d, 1\n", rd);
+          fprintf(fp, "\tj\t.L%d\n", normal_label + 1);
           fprintf(fp, ".L%d:\n", normal_label);
-          fprintf(fp, "\tli x%d, 0\n", rd);
+          fprintf(fp, "\tli\tx%d, 0\n", rd);
           fprintf(fp, ".L%d:\n", normal_label + 1);
           normal_label += 2;
           FreeReg(tmp);
