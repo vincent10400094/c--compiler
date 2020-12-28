@@ -361,8 +361,12 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
   node = node->rightSibling;
   while (node) {
     TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
-    type_descriptor->properties.dataType = data_type;
     int cheak_id_node = processIdNode(node, &type_descriptor, is_type_array, type_entry);
+    if (type_descriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
+      type_descriptor->properties.dataType = data_type;
+    } else {
+      type_descriptor->properties.arrayProperties.elementType = data_type;
+    }
     if (cheak_id_node) {
       SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
       symbol_attr->attributeKind = isVariableOrTypeAttribute;
