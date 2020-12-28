@@ -9,6 +9,8 @@
 int AR_offset = 4;  //5-7, 18-31,
 int max_label_number = 1;
 int sc_label_number = 1;
+int fconst_label_number = 1;
+int normal_label = 1;
 int int_reg[32];
 int float_reg[8];
 void GenPrologue(char *function_name, FILE *fp);
@@ -113,8 +115,18 @@ void GenSymbolDeclaration(AST_NODE *declaration_list_node, FILE *fp) {
                   fprintf(fp, "_g_%s: .word %d\n", id_node->semantic_value.identifierSemanticValue.identifierName, float_to_int);
                 }
               } else {
-                //reg = GenExpr()
-                //sw\treg, -offset(fp)
+                AST_NODE *init_node = id_node->child;
+                int rs = GenExpr(id_node->child, fp);
+                assert(init_node->dataType != NONE_TYPE);
+                if (init_node->dataType == INT_TYPE) {
+                  AllocateSymbol(id_node->semantic_value.identifierSemanticValue.symbolTableEntry, 4);
+                  fprintf(fp, "\tsw\tx%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
+                  FreeReg(rs);
+                } else if (init_node->dataType == FLOAT_TYPE) {
+                  AllocateSymbol(id_node->semantic_value.identifierSemanticValue.symbolTableEntry, 4);
+                  fprintf(fp, "\tfsw\tft%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
+                  FreeFloatReg(rs);
+                }
               }
             }
             break;
@@ -169,7 +181,6 @@ void GenBlockNode(AST_NODE *block_node, FILE *fp) {
   AST_NODE *node = block_node->child;
   while (node) {
     if (node->nodeType == VARIABLE_DECL_LIST_NODE) {
-      fprintf(fp, ".data\n");
       GenSymbolDeclaration(node, fp);
       fprintf(fp, ".text\n");
     } else if (node->nodeType == STMT_LIST_NODE) {
@@ -218,16 +229,30 @@ void GenStatement(AST_NODE *stmt_node, FILE *fp) {
 // return value: register number that holds the value
 int LoadVariable(AST_NODE *id_node, FILE *fp) {
   SymbolTableEntry *entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+  assert(id_node->dataType != NONE_TYPE);
   int tmp_reg, reg;
   if (entry->scope == 0) {  // static variable
-    tmp_reg = GetReg();
-    fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, id_node->semantic_value.identifierSemanticValue.identifierName);
-    reg = GetReg();
-    fprintf(fp, "\tlw\tx%d,0(x%d)\n", reg, tmp_reg);
-    FreeReg(tmp_reg);
+    if (id_node->dataType == INT_TYPE) {
+      tmp_reg = GetReg();
+      fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, id_node->semantic_value.identifierSemanticValue.identifierName);
+      reg = GetReg();
+      fprintf(fp, "\tlw\tx%d,0(x%d)\n", reg, tmp_reg);
+      FreeReg(tmp_reg);
+    } else if (id_node->dataType == FLOAT_TYPE) {
+      tmp_reg = GetReg();
+      fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, id_node->semantic_value.identifierSemanticValue.identifierName);
+      reg = GetFloatReg();
+      fprintf(fp, "\tflw\tft%d,0(x%d)\n", reg, tmp_reg);
+      FreeReg(tmp_reg);
+    }
   } else {  // local variable
-    reg = GetReg();
-    fprintf(fp, "\tlw\tx%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
+    if (id_node->dataType == INT_TYPE) {
+      reg = GetReg();
+      fprintf(fp, "\tlw\tx%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
+    } else if (id_node->dataType == FLOAT_TYPE) {
+      reg = GetFloatReg();
+      fprintf(fp, "\tflw\tft%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
+    }
   }
   return reg;
 }
@@ -236,12 +261,24 @@ int LoadVariable(AST_NODE *id_node, FILE *fp) {
 int GenExpr(AST_NODE *expr_node, FILE *fp) {
   if (expr_node->nodeType == CONST_VALUE_NODE) {
     if (expr_node->semantic_value.const1->const_type == INTEGERC) {
+      expr_node->dataType = INT_TYPE;
       int reg = GetReg();
       fprintf(fp, "\tli\tx%d,%d\n", reg, expr_node->semantic_value.const1->const_u.intval);
-      expr_node->dataType = INT_TYPE;
       return reg;
     } else if (expr_node->semantic_value.const1->const_type == FLOATC) {
       expr_node->dataType = FLOAT_TYPE;
+      fprintf(fp, ".data\n");
+      float fconst = expr_node->semantic_value.const1->const_u.fval;
+      int float_to_int = *(int *)&fconst;
+      fprintf(fp, ".FC%d: .word %u\n", fconst_label_number, float_to_int);
+      fprintf(fp, ".text\n");
+      int tmp_reg = GetReg();
+      fprintf(fp, "\tla\tx%d, .FC%d\n", tmp_reg, fconst_label_number);
+      int reg = GetFloatReg();
+      fprintf(fp, "\tflw\tft%d,0(x%d)\n", reg, tmp_reg);
+      FreeReg(tmp_reg);
+      fconst_label_number++;
+      return reg;
     }
   } else if (expr_node->nodeType == IDENTIFIER_NODE) {
     expr_node->dataType = expr_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->properties.dataType;
@@ -250,7 +287,6 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
     // gen function call
     if ((expr_node->child->semantic_value.identifierSemanticValue.symbolTableEntry && expr_node->child->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->returnType == INT_TYPE) ||
         !strcmp(expr_node->child->semantic_value.identifierSemanticValue.identifierName, "read")) {
-      //   fprintf(stderr, "hihi\n");
       GenFunctionCall(expr_node, fp);
       int reg = GetReg();
       fprintf(fp, "\tmv\tx%d,a0\n", reg);
@@ -268,92 +304,247 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
   if (semanticValue->kind == BINARY_OPERATION) {  // binary operation
     int rs1 = GenExpr(expr_node->child, fp);
     int rs2 = GenExpr(expr_node->child->rightSibling, fp);
-    FreeReg(rs1);
-    FreeReg(rs2);
-    int rd = GetReg();
-    switch (semanticValue->op.binaryOp) {
-      case BINARY_OP_ADD: {
-        fprintf(fp, "\tadd\tx%d,x%d,x%d\n", rd, rs1, rs2);
-        break;
+    assert(expr_node->child->dataType != NONE_TYPE);
+    char reg_name[3];
+    if (expr_node->child->dataType == INT_TYPE) {
+      FreeReg(rs1);
+      FreeReg(rs2);
+      int rd = GetReg();
+      switch (semanticValue->op.binaryOp) {
+        case BINARY_OP_ADD: {
+          fprintf(fp, "\tadd\tx%d,x%d,x%d\n", rd, rs1, rs2);
+          break;
+        }
+        case BINARY_OP_SUB: {
+          fprintf(fp, "\tsub\tx%d,x%d,x%d\n", rd, rs1, rs2);
+          break;
+        }
+        case BINARY_OP_MUL: {
+          fprintf(fp, "\tmul\tx%d,x%d,x%d\n", rd, rs1, rs2);
+          break;
+        }
+        case BINARY_OP_DIV: {
+          fprintf(fp, "\tdiv\tx%d,x%d,x%d\n", rd, rs1, rs2);
+          break;
+        }
+        case BINARY_OP_EQ: {
+          fprintf(fp, "\tsub\tx%d,x%d,x%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tseqz\tx%d,x%d\n", rd, rd);
+          break;
+        }
+        case BINARY_OP_NE: {
+          fprintf(fp, "\tsub\tx%d,x%d,x%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tsnez\tx%d,x%d\n", rd, rd);
+          break;
+        }
+        case BINARY_OP_GE: {
+          fprintf(fp, "\tslt\tx%d,x%d,x%d\n", rd, rs1, rs2);
+          fprintf(fp, "\txori\tx%d,x%d,1\n", rd, rd);
+          break;
+        }
+        case BINARY_OP_GT: {
+          fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs1, rs2);
+          break;
+        }
+        case BINARY_OP_LE: {
+          fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs1, rs2);
+          fprintf(fp, "\txori\tx%d,x%d,1\n", rd, rd);
+          break;
+        }
+        case BINARY_OP_LT: {
+          fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs2, rs1);
+          break;
+        }
+        case BINARY_OP_AND: {
+          fprintf(fp, "\tbeqz\tx%d, .L%d\n", rs1, normal_label);
+          fprintf(fp, "\tbeqz\tx%d, .L%d\n", rs2, normal_label);
+          fprintf(fp, "\tli\tx%d, 1\n", rd);
+          fprintf(fp, "\tj\t.L%d\n", normal_label + 1);
+          fprintf(fp, ".L%d:\n", normal_label);
+          fprintf(fp, "\tli\tx%d, 0\n", rd);
+          fprintf(fp, ".L%d:\n", normal_label + 1);
+          normal_label += 2;
+          break;
+        }
+        case BINARY_OP_OR: {
+          fprintf(fp, "\tbnez\tx%d, .L%d\n", rs1, normal_label);
+          fprintf(fp, "\tbnez\tx%d, .L%d\n", rs2, normal_label);
+          fprintf(fp, "\tli\tx%d, 0\n", rd);
+          fprintf(fp, "\tj\t.L%d\n", normal_label + 1);
+          fprintf(fp, ".L%d:\n", normal_label);
+          fprintf(fp, "\tli\tx%d, 1\n", rd);
+          fprintf(fp, ".L%d:\n", normal_label + 1);
+          normal_label += 2;
+          break;
+        }
+        default: {
+          break;
+        }
       }
-      case BINARY_OP_SUB: {
-        fprintf(fp, "\tsub\tx%d,x%d,x%d\n", rd, rs1, rs2);
-        break;
+      expr_node->dataType = INT_TYPE;
+      return rd;
+    } else {
+      FreeFloatReg(rs1);
+      FreeFloatReg(rs2);
+      int rd;
+      switch (semanticValue->op.binaryOp) {
+        case BINARY_OP_ADD: {
+          rd = GetFloatReg();
+          fprintf(fp, "\tfadd.s\tft%d,ft%d,ft%d\n", rd, rs1, rs2);
+          expr_node->dataType = FLOAT_TYPE;
+          break;
+        }
+        case BINARY_OP_SUB: {
+          rd = GetFloatReg();
+          fprintf(fp, "\tfsub.s\tft%d,ft%d,ft%d\n", rd, rs1, rs2);
+          expr_node->dataType = FLOAT_TYPE;
+          break;
+        }
+        case BINARY_OP_MUL: {
+          rd = GetFloatReg();
+          fprintf(fp, "\tfmul.s\tft%d,ft%d,ft%d\n", rd, rs1, rs2);
+          expr_node->dataType = FLOAT_TYPE;
+          break;
+        }
+        case BINARY_OP_DIV: {
+          rd = GetFloatReg();
+          fprintf(fp, "\tfdiv.s\tft%d,ft%d,ft%d\n", rd, rs1, rs2);
+          expr_node->dataType = FLOAT_TYPE;
+          break;
+        }
+        case BINARY_OP_EQ: {
+          rd = GetReg();
+          fprintf(fp, "\tfeq.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          expr_node->dataType = INT_TYPE;
+          break;
+        }
+        case BINARY_OP_NE: {
+          rd = GetReg();
+          fprintf(fp, "\tfeq.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tseqz\tx%d,x%d\n", rd, rd);
+          expr_node->dataType = INT_TYPE;
+          break;
+        }
+        case BINARY_OP_GE: {
+          rd = GetReg();
+          fprintf(fp, "\tfge.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          expr_node->dataType = INT_TYPE;
+          break;
+        }
+        case BINARY_OP_GT: {
+          rd = GetReg();
+          fprintf(fp, "\tfgt.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          expr_node->dataType = INT_TYPE;
+          break;
+        }
+        case BINARY_OP_LE: {
+          rd = GetReg();
+          fprintf(fp, "\tfle.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          expr_node->dataType = INT_TYPE;
+          break;
+        }
+        case BINARY_OP_LT: {
+          rd = GetReg();
+          fprintf(fp, "\tflt.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          expr_node->dataType = INT_TYPE;
+          break;
+        }
+        case BINARY_OP_AND: {
+          rd = GetReg();
+          int zero = GetFloatReg();
+          int tmp = GetReg();
+          fprintf(fp, "\tfmv.s.x\tft%d, zero\n", zero);
+          fprintf(fp, "\tfeq.s\tx%d, ft%d, ft%d\n", tmp, rs1, zero);
+          fprintf(fp, "\tbnez\tx%d, .L%d\n", tmp, normal_label);
+          fprintf(fp, "\tfeq.s\tx%d, ft%d, ft%d\n", tmp, rs2, zero);
+          fprintf(fp, "\tbnez\tx%d, .L%d\n", tmp, normal_label);
+          fprintf(fp, "\tli\tx%d, 1\n", rd);
+          fprintf(fp, "\tj\t.L%d\n", normal_label + 1);
+          fprintf(fp, ".L%d:\n", normal_label);
+          fprintf(fp, "\tli\tx%d, 0\n", rd);
+          fprintf(fp, ".L%d:\n", normal_label + 1);
+          normal_label += 2;
+          FreeReg(tmp);
+          FreeFloatReg(zero);
+          break;
+        }
+        case BINARY_OP_OR: {
+          rd = GetReg();
+          int zero = GetFloatReg();
+          int tmp = GetReg();
+          fprintf(fp, "\tfmv.s.x ft%d, zero\n", zero);
+          fprintf(fp, "\tfeq.s x%d, ft%d, ft%d\n", tmp, rs1, zero);
+          fprintf(fp, "\tbeqz x%d, .L%d\n", tmp, normal_label);
+          fprintf(fp, "\tfeq.s x%d, ft%d, ft%d\n", tmp, rs2, zero);
+          fprintf(fp, "\tbeqz x%d, .L%d\n", tmp, normal_label);
+          fprintf(fp, "\tli x%d, 0\n", rd);
+          fprintf(fp, "\tj .L%d\n", normal_label + 1);
+          fprintf(fp, ".L%d:\n", normal_label);
+          fprintf(fp, "\tli x%d, 1\n", rd);
+          fprintf(fp, ".L%d:\n", normal_label + 1);
+          normal_label += 2;
+          FreeReg(tmp);
+          FreeFloatReg(zero);
+          break;
+        }
+        default: {
+          break;
+        }
       }
-      case BINARY_OP_MUL: {
-        // expr_node->dataType = ;
-        fprintf(fp, "\tmul\tx%d,x%d,x%d\n", rd, rs1, rs2);
-        break;
-      }
-      case BINARY_OP_DIV: {
-        fprintf(fp, "\tdiv\tx%d,x%d,x%d\n", rd, rs1, rs2);
-        break;
-      }
-      case BINARY_OP_EQ: {
-        expr_node->dataType = INT_TYPE;
-        fprintf(fp, "\tsub\tx%d,x%d,x%d\n", rd, rs1, rs2);
-        fprintf(fp, "\tseqz\tx%d,x%d\n", rd, rd);
-        break;
-      }
-      case BINARY_OP_NE: {
-        expr_node->dataType = INT_TYPE;
-        fprintf(fp, "\tsub\tx%d,x%d,x%d\n", rd, rs1, rs2);
-        fprintf(fp, "\tsnez\tx%d,x%d\n", rd, rd);
-        break;
-      }
-      case BINARY_OP_GE: {
-        expr_node->dataType = INT_TYPE;
-        fprintf(fp, "\tslt\tx%d,x%d,x%d\n", rd, rs1, rs2);
-        fprintf(fp, "\txori\tx%d,x%d,1\n", rd, rd);
-        break;
-      }
-      case BINARY_OP_GT: {
-        expr_node->dataType = INT_TYPE;
-        fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs1, rs2);
-        break;
-      }
-      case BINARY_OP_LE: {
-        expr_node->dataType = INT_TYPE;
-        fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs1, rs2);
-        fprintf(fp, "\txori\tx%d,x%d,1\n", rd, rd);
-        break;
-      }
-      case BINARY_OP_LT: {
-        expr_node->dataType = INT_TYPE;
-        fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs2, rs1);
-        break;
-      }
-      case BINARY_OP_AND: {
-        fprintf(fp, "\tand\tx%d,x%d,x%d\n", rd, rs1, rs2);
-        break;
-      }
-      case BINARY_OP_OR: {
-        fprintf(fp, "\tor\tx%d,x%d,x%d\n", rd, rs1, rs2);
-        break;
-      }
-      default: {
-        break;
-      }
+      return rd;
     }
-    return rd;
   } else {  // unary operation
     int rs1 = GenExpr(expr_node->child, fp);
-    switch (semanticValue->op.unaryOp) {
-      case UNARY_OP_LOGICAL_NEGATION: {
-        fprintf(fp, "\tseqz\tx%d,x%d\n", rs1, rs1);
-        fprintf(fp, "\txori\tx%d,x%d,1\n", rs1, rs1);
-        break;
+    if (expr_node->child->dataType == INT_TYPE) {
+      switch (semanticValue->op.unaryOp) {
+        case UNARY_OP_LOGICAL_NEGATION: {
+          fprintf(fp, "\tseqz\tx%d,x%d\n", rs1, rs1);
+          fprintf(fp, "\txori\tx%d,x%d,1\n", rs1, rs1);
+          break;
+        }
+        case UNARY_OP_NEGATIVE: {
+          fprintf(fp, "\tsub\tx%d,x0,x%d\n", rs1, rs1);
+          break;
+        }
+        case UNARY_OP_POSITIVE: {
+          // do nothing
+          break;
+        }
       }
-      case UNARY_OP_NEGATIVE: {
-        fprintf(fp, "\tsub\t%d,x0,x%d\n", rs1, rs1);
-        break;
+      expr_node->dataType = INT_TYPE;
+      return rs1;
+    } else {
+      int rd;
+      switch (semanticValue->op.unaryOp) {
+        case UNARY_OP_LOGICAL_NEGATION: {
+          int zero = GetFloatReg();
+          rd = GetReg();
+          fprintf(fp, "\tfmv.s.x ft%d, zero\n", zero);
+          fprintf(fp, "\tfeq.s x%d, ft%d, ft%d\n", rd, rs1, zero);
+          fprintf(fp, "\txori\tx%d,x%d,1\n", rd, rd);
+          FreeFloatReg(zero);
+          FreeFloatReg(rs1);
+          expr_node->dataType = INT_TYPE;
+          break;
+        }
+        case UNARY_OP_NEGATIVE: {
+          int zero = GetFloatReg();
+          rd = GetFloatReg();
+          fprintf(fp, "\tfmv.s.x ft%d, zero\n", zero);
+          fprintf(fp, "\tfsub.s\tft%d,ft%d,ft%d\n", rd, zero, rs1);
+          FreeFloatReg(zero);
+          FreeFloatReg(rs1);
+          expr_node->dataType = FLOAT_TYPE;
+          break;
+        }
+        case UNARY_OP_POSITIVE: {
+          // do nothing
+          expr_node->dataType = FLOAT_TYPE;
+          break;
+        }
       }
-      case UNARY_OP_POSITIVE: {
-        // do nothing
-        break;
-      }
+      return rd;
     }
-    return rs1;
   }
 }
 
@@ -365,10 +556,10 @@ void GenFunctionCall(AST_NODE *stmt_node, FILE *fp) {
   if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "write") == 0) {
     AST_NODE *parameter_node = function_id_node->rightSibling->child;
     if (parameter_node->dataType == CONST_STRING_TYPE) {
-      char *s = (char *)malloc(strlen(parameter_node->semantic_value.const1->const_u.sc));
+      char *s = (char *)malloc(strlen(parameter_node->semantic_value.const1->const_u.sc) - 2);
       strncpy(s, parameter_node->semantic_value.const1->const_u.sc + 1, strlen(parameter_node->semantic_value.const1->const_u.sc) - 2);
       fprintf(fp, ".data\n");
-      fprintf(fp, ".SC%d: .string \"%s\\n\\000\"\n", sc_label_number, s);
+      fprintf(fp, ".SC%d: .string \"%s\\000\"\n", sc_label_number, s);
       fprintf(fp, ".text\n");
       int rs = GetReg();
       fprintf(fp, "\tlui\tx%d,%%hi(.SC%d)\n", rs, sc_label_number);
@@ -381,11 +572,12 @@ void GenFunctionCall(AST_NODE *stmt_node, FILE *fp) {
       if (parameter_node->dataType == INT_TYPE) {
         fprintf(fp, "\tmv\ta0,x%d\n", rs);
         fprintf(fp, "\tjal\t_write_int\n");
+        FreeReg(rs);
       } else {
         fprintf(fp, "\tfmv.s fa0,ft%d\n", rs);
         fprintf(fp, "\tjal\t_write_float\n");
+        FreeFloatReg(rs);
       }
-      FreeReg(rs);
     }
   } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "read") == 0) {
     fprintf(fp, "\tcall\t_read_int\n");
@@ -443,15 +635,28 @@ void GenWhileStmt(AST_NODE *stmt_node, FILE *fp) {
 void GenAssignment(AST_NODE *assignment_node, FILE *fp) {
   AST_NODE *id_node = assignment_node->child;
   int rs = GenExpr(id_node->rightSibling, fp);
+  assert(id_node->rightSibling->dataType != NONE_TYPE);
   if (id_node->semantic_value.identifierSemanticValue.symbolTableEntry->scope == 0) {
-    int tmp_reg = GetReg();
-    fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, id_node->semantic_value.identifierSemanticValue.identifierName);
-    fprintf(fp, "\tsw\tx%d,0(x%d)\n", rs, tmp_reg);
-    FreeReg(tmp_reg);
+    if (id_node->rightSibling->dataType == INT_TYPE) {
+      int tmp_reg = GetReg();
+      fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, id_node->semantic_value.identifierSemanticValue.identifierName);
+      fprintf(fp, "\tsw\tx%d,0(x%d)\n", rs, tmp_reg);
+      FreeReg(tmp_reg);
+      FreeReg(rs);
+    } else if (id_node->rightSibling->dataType == FLOAT_TYPE) {
+      int tmp_reg = GetFloatReg();
+      fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, id_node->semantic_value.identifierSemanticValue.identifierName);
+      fprintf(fp, "\tfsw\tft%d,0(x%d)\n", rs, tmp_reg);
+    }
   } else {
-    fprintf(fp, "\tsw\tx%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
+    if (id_node->rightSibling->dataType == INT_TYPE) {
+      fprintf(fp, "\tsw\tx%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
+      FreeReg(rs);
+    } else if (id_node->rightSibling->dataType == FLOAT_TYPE) {
+      fprintf(fp, "\tfsw\tft%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
+      FreeFloatReg(rs);
+    }
   }
-  FreeReg(rs);
 }
 
 void GenFunctionDeclaration(AST_NODE *declaration_node, FILE *fp) {
