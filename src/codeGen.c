@@ -238,10 +238,13 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
     if (expr_node->semantic_value.const1->const_type == INTEGERC) {
       int reg = GetReg();
       fprintf(fp, "\tli\tx%d,%d\n", reg, expr_node->semantic_value.const1->const_u.intval);
+      expr_node->dataType = INT_TYPE;
       return reg;
     } else if (expr_node->semantic_value.const1->const_type == FLOATC) {
+      expr_node->dataType = FLOAT_TYPE;
     }
   } else if (expr_node->nodeType == IDENTIFIER_NODE) {
+    expr_node->dataType = expr_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->properties.dataType;
     return LoadVariable(expr_node, fp);
   } else if (expr_node->nodeType == STMT_NODE) {
     // gen function call
@@ -278,6 +281,7 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
         break;
       }
       case BINARY_OP_MUL: {
+        // expr_node->dataType = ;
         fprintf(fp, "\tmul\tx%d,x%d,x%d\n", rd, rs1, rs2);
         break;
       }
@@ -286,30 +290,36 @@ int GenExpr(AST_NODE *expr_node, FILE *fp) {
         break;
       }
       case BINARY_OP_EQ: {
+        expr_node->dataType = INT_TYPE;
         fprintf(fp, "\tsub\tx%d,x%d,x%d\n", rd, rs1, rs2);
         fprintf(fp, "\tseqz\tx%d,x%d\n", rd, rd);
         break;
       }
       case BINARY_OP_NE: {
+        expr_node->dataType = INT_TYPE;
         fprintf(fp, "\tsub\tx%d,x%d,x%d\n", rd, rs1, rs2);
         fprintf(fp, "\tsnez\tx%d,x%d\n", rd, rd);
         break;
       }
       case BINARY_OP_GE: {
+        expr_node->dataType = INT_TYPE;
         fprintf(fp, "\tslt\tx%d,x%d,x%d\n", rd, rs1, rs2);
         fprintf(fp, "\txori\tx%d,x%d,1\n", rd, rd);
         break;
       }
       case BINARY_OP_GT: {
+        expr_node->dataType = INT_TYPE;
         fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs1, rs2);
         break;
       }
       case BINARY_OP_LE: {
+        expr_node->dataType = INT_TYPE;
         fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs1, rs2);
         fprintf(fp, "\txori\tx%d,x%d,1\n", rd, rd);
         break;
       }
       case BINARY_OP_LT: {
+        expr_node->dataType = INT_TYPE;
         fprintf(fp, "\tsgt\tx%d,x%d,x%d\n", rd, rs2, rs1);
         break;
       }
