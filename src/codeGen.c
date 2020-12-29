@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,6 +69,28 @@ void InitRegs() {
   }
 }
 
+int GetRegToFree(RegType reg_type) {
+  assert(reg_type == INT_S || reg_type == FLOAT_S);
+  int candidate = 0, max_ref_count = INT_MAX;
+  if (reg_type == INT_S) {
+    for (int i = 0; i < 10; i++) {
+      if (reg_int[int_s_reg_list[i]].ref_count < max_ref_count) {
+        candidate = int_s_reg_list[i];
+        max_ref_count = reg_int[candidate].ref_count;
+      }
+    }
+    return candidate;
+  } else {
+    for (int i = 0; i < 12; i++) {
+      if (reg_float[float_s_reg_list[i]].ref_count < max_ref_count) {
+        candidate = float_s_reg_list[i];
+        max_ref_count = reg_float[candidate].ref_count;
+      }
+    }
+    return candidate;
+  }
+}
+
 int GetReg(RegType reg_type) {
   switch (reg_type) {
     case INT_T: {
@@ -87,7 +110,9 @@ int GetReg(RegType reg_type) {
         }
       }
       // TODO: all registrs are in-use
-      break;
+      int reg_to_free = GetRegToFree(INT_S);
+      FreeReg(reg_to_free, INT_S);
+      return reg_to_free;
     }
     case FLOAT_T: {
       for (int i = 0; i < 12; i++) {
@@ -106,7 +131,9 @@ int GetReg(RegType reg_type) {
         }
       }
       // TODO: all registrs are in-use
-      break;
+      int reg_to_free = GetRegToFree(FLOAT_S);
+      FreeReg(reg_to_free, FLOAT_S);
+      return reg_to_free;
     }
   }
   fprintf(stderr, "This should not happen, run out of registers\n");
@@ -215,6 +242,21 @@ void StoreDirtyRegisters() {
   for (int i = 0; i < 12; i++) {
     int reg_number = float_s_reg_list[i];
     if (reg_float[reg_number].dirty && reg_float[reg_number].entry->scope == 0) {
+      StoreStaticVariable(reg_number, FLOAT_S);
+    }
+  }
+}
+
+void StoreDirtyRegistersAll() {
+  for (int i = 0; i < 10; i++) {
+    int reg_number = int_s_reg_list[i];
+    if (reg_int[reg_number].dirty) {
+      StoreStaticVariable(reg_number, INT_S);
+    }
+  }
+  for (int i = 0; i < 12; i++) {
+    int reg_number = float_s_reg_list[i];
+    if (reg_float[reg_number].dirty) {
       StoreStaticVariable(reg_number, FLOAT_S);
     }
   }
@@ -411,6 +453,10 @@ int LoadVariable(AST_NODE *id_node) {
     // there is a saved register holds the variable's value
     if (id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->reg != 0) {
       reg = id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->reg;
+      if (id_node->dataType == INT_TYPE)
+        reg_int[reg].ref_count++;
+      else if (id_node->dataType == FLOAT_TYPE)
+        reg_float[reg].ref_count++;
       return reg;
     }
     if (entry->scope == 0) {  // static variable
@@ -433,12 +479,15 @@ int LoadVariable(AST_NODE *id_node) {
         fprintf(fp, "\tflw\tft%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
       }
     }
+    printf("%d\n", reg);
     if (id_node->dataType == INT_TYPE) {
       reg_int[reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
       reg_int[reg].entry->attribute->attr.typeDescriptor->reg = reg;
+      reg_int[reg].ref_count = 1;
     } else {
       reg_float[reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
       reg_float[reg].entry->attribute->attr.typeDescriptor->reg = reg;
+      reg_float[reg].ref_count = 1;
     }
   } else {                    // array
     if (entry->scope == 0) {  // static variable
@@ -871,6 +920,7 @@ void GenWhileStmt(AST_NODE *stmt_node) {
     FreeReg(test_reg, FLOAT_T);
   }
   GenStatement(test_node->rightSibling);
+  StoreDirtyRegistersAll();
   fprintf(fp, "\tj\t_Test%d\n", label_number);
   fprintf(fp, "_Lexit%d:\n", label_number);
 }
