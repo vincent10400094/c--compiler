@@ -163,4 +163,20 @@ typedef struct AST_NODE {
 
 AST_NODE *Allocate(AST_TYPE type);
 void semanticAnalysis(AST_NODE *root);
+
+typedef struct {
+  short number;
+  char dirty;
+  char used;
+  struct SymbolTableEntry *entry;
+  int ref_count;
+} Register;
+
+typedef enum RegType {
+  INT_T,
+  INT_S,
+  FLOAT_T,
+  FLOAT_S
+} RegType;
+
 #endif
