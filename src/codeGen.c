@@ -325,7 +325,7 @@ ld\ts8,112(sp)\n\tld\ts9,120(sp)\n\tld\ts10,128(sp)\n\tld\ts11,136(sp)\n\tld\tfp
 flw\tft0,152(sp)\n\tflw\tft1,156(sp)\n\tflw\tft2,160(sp)\n\tflw\tft3,164(sp)\n\tflw\tft4,168(sp)\n\tflw\tft5,172(sp)\n\t\
 flw\tft6,176(sp)\n\tflw\tft7,180(sp)\n\tld\tra,8(fp)\n\tmv\tsp,fp\n\tadd sp,sp,8\n\tld\tfp,0(fp)\n\tjr\tra\n.data\n");
   fprintf(fp, "_frameSize_%s: .word %d\n", function_name, 180 + AR_offset);
-  AR_offset = 4;
+  AR_offset = 0;
 }
 
 void GenBlockNode(AST_NODE *block_node) {
@@ -688,6 +688,7 @@ int GenExpr(AST_NODE *expr_node) {
           normal_label += 2;
           FreeReg(tmp, INT_T);
           FreeReg(zero, FLOAT_T);
+          expr_node->dataType = INT_TYPE;
           break;
         }
         case BINARY_OP_OR: {
@@ -707,6 +708,7 @@ int GenExpr(AST_NODE *expr_node) {
           normal_label += 2;
           FreeReg(tmp, INT_T);
           FreeReg(zero, FLOAT_T);
+          expr_node->dataType = INT_TYPE;
           break;
         }
         default: {
