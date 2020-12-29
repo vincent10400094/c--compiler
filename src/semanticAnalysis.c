@@ -367,6 +367,7 @@ void declareIdList(AST_NODE* idNode, SymbolAttributeKind isVariableOrTypeAttribu
     } else {
       type_descriptor->properties.arrayProperties.elementType = data_type;
     }
+    node->dataType = data_type;
     if (cheak_id_node) {
       SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
       symbol_attr->attributeKind = isVariableOrTypeAttribute;
@@ -981,6 +982,7 @@ void processVariableRValue(AST_NODE* idNode) {
     int dimCount = 0;
     AST_NODE* ptr = idNode->child;
     while (ptr) {
+      processExprNode(ptr);
       dimCount++;
       ptr = ptr->rightSibling;
     }
