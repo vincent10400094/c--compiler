@@ -383,7 +383,7 @@ ld\ts8,112(sp)\n\tld\ts9,120(sp)\n\tld\ts10,128(sp)\n\tld\ts11,136(sp)\n\tld\tfp
 flw\tft0,152(sp)\n\tflw\tft1,156(sp)\n\tflw\tft2,160(sp)\n\tflw\tft3,164(sp)\n\tflw\tft4,168(sp)\n\tflw\tft5,172(sp)\n\t\
 flw\tft6,176(sp)\n\tflw\tft7,180(sp)\n\tld\tra,8(fp)\n\tmv\tsp,fp\n\tadd sp,sp,8\n\tld\tfp,0(fp)\n\tjr\tra\n.data\n");
   fprintf(fp, "_frameSize_%s: .word %d\n", function_name, 180 + AR_offset);
-  AR_offset = 4;
+  AR_offset = 0;
 }
 
 void GenBlockNode(AST_NODE *block_node) {
@@ -565,7 +565,17 @@ int GenExpr(AST_NODE *expr_node) {
     } else {
       expr_node->dataType = expr_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
     }
-    return LoadVariable(expr_node);
+    int reg, tmp_reg;
+    reg = LoadVariable(expr_node);
+    assert(expr_node->dataType == INT_TYPE || expr_node->dataType == FLOAT_TYPE);
+    if (expr_node->dataType == INT_TYPE) {
+      tmp_reg = GetReg(INT_T);
+      fprintf(fp, "\tmv\tx%d,x%d\n", tmp_reg, reg);
+    } else {
+      tmp_reg = GetReg(FLOAT_T);
+      fprintf(fp, "\tfmv.s\tf%d,f%d\n", tmp_reg, reg);
+    }
+    return tmp_reg;
   } else if (expr_node->nodeType == STMT_NODE) {
     // gen function call
     if ((expr_node->child->semantic_value.identifierSemanticValue.symbolTableEntry && expr_node->child->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->returnType == INT_TYPE) ||
@@ -592,10 +602,8 @@ int GenExpr(AST_NODE *expr_node) {
     // both children are INT_TYPE
     if (expr_node->child->dataType == INT_TYPE && expr_node->child->rightSibling->dataType == INT_TYPE) {
       expr_node->dataType = INT_TYPE;
-      if (expr_node->child->nodeType != IDENTIFIER_NODE)
-        FreeReg(rs1, INT_T);
-      if (expr_node->child->rightSibling->nodeType != IDENTIFIER_NODE)
-        FreeReg(rs2, INT_T);
+      FreeReg(rs1, INT_T);
+      FreeReg(rs2, INT_T);
       int rd = GetReg(INT_T);
       switch (semanticValue->op.binaryOp) {
         case BINARY_OP_ADD: {
@@ -670,10 +678,8 @@ int GenExpr(AST_NODE *expr_node) {
       }
       return rd;
     } else if (expr_node->child->dataType == FLOAT_TYPE && expr_node->child->rightSibling->dataType == FLOAT_TYPE) {
-      if (expr_node->child->nodeType != IDENTIFIER_NODE)
-        FreeReg(rs1, FLOAT_T);
-      if (expr_node->child->rightSibling->nodeType != IDENTIFIER_NODE)
-        FreeReg(rs2, FLOAT_T);
+      FreeReg(rs1, FLOAT_T);
+      FreeReg(rs2, FLOAT_T);
       int rd;
       switch (semanticValue->op.binaryOp) {
         case BINARY_OP_ADD: {
@@ -754,6 +760,7 @@ int GenExpr(AST_NODE *expr_node) {
           normal_label += 2;
           FreeReg(tmp, INT_T);
           FreeReg(zero, FLOAT_T);
+          expr_node->dataType = INT_TYPE;
           break;
         }
         case BINARY_OP_OR: {
@@ -773,6 +780,7 @@ int GenExpr(AST_NODE *expr_node) {
           normal_label += 2;
           FreeReg(tmp, INT_T);
           FreeReg(zero, FLOAT_T);
+          expr_node->dataType = INT_TYPE;
           break;
         }
         default: {
