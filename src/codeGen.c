@@ -702,7 +702,7 @@ void GenIfStmt(AST_NODE *stmt_node) {
 void GenWhileStmt(AST_NODE *stmt_node) {
   AST_NODE *test_node = stmt_node->child;
   int label_number = max_label_number++;
-  StoreStaticVariables();
+  FreeSavedRegisters();
   fprintf(fp, "_Test%d:\n", label_number);
   int test_reg = GenExpr(test_node);
   fprintf(fp, "\tbeqz\tx%d,_Lexit%d\n", test_reg, label_number);
