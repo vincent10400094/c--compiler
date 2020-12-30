@@ -8,8 +8,8 @@ YACCFLAG = -d
 # LIBS = -lfl	 	# under unix
 LIBS = -ll 			# under mac
 
-parser: parser.tab.o alloc.o functions.o symbolTable.o semanticAnalysis.o codeGen.o
-	$(CC) -o $(TARGET) parser.tab.o alloc.o functions.o symbolTable.o semanticAnalysis.o codeGen.o $(LIBS)
+parser: parser.tab.o alloc.o functions.o symbolTable.o semanticAnalysis.o codeGen.o register.o
+	$(CC) -o $(TARGET) parser.tab.o alloc.o functions.o symbolTable.o semanticAnalysis.o codeGen.o register.o $(LIBS)
 
 parser.tab.o: parser.tab.c lex.yy.c alloc.o functions.c symbolTable.o semanticAnalysis.o codeGen.o
 	$(CC) -c parser.tab.c
@@ -17,8 +17,11 @@ parser.tab.o: parser.tab.c lex.yy.c alloc.o functions.c symbolTable.o semanticAn
 semanticAnalysis.o: semanticAnalysis.c symbolTable.o
 	$(CC) -c semanticAnalysis.c
 
-codeGen.o: codeGen.c symbolTable.o
+codeGen.o: codeGen.c symbolTable.o register.o
 	$(CC) -c codeGen.c
+
+register.o: register.c
+	$(CC) -c register.c
 
 symbolTable.o: symbolTable.c
 	$(CC) -c symbolTable.c
