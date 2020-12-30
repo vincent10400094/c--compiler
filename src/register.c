@@ -16,6 +16,8 @@ int int_s_reg_list[10] = {18, 19, 20, 21, 22, 23, 24, 25, 26, 27};
 int float_t_reg_list[12] = {0, 1, 2, 3, 4, 5, 6, 7, 28, 29, 30, 31};
 int float_s_reg_list[12] = {8, 9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27};
 
+int iconst_label_number_s = 1;
+
 void InitRegs() {
   for (int i = 0; i < 32; i++) {
     reg_int[i].number = i;
@@ -194,10 +196,36 @@ void StoreStaticVariable(int reg_number, RegType reg_type) {
 void StoreLocalVariable(int reg_number, RegType reg_type) {
   assert(reg_type == INT_S || reg_type == FLOAT_S);
   if (reg_type == INT_S) {
-    fprintf(fp, "\tsw\tx%d,-%d(fp)\n", reg_number, reg_int[reg_number].entry->attribute->attr.typeDescriptor->offset);
+    if (reg_int[reg_number].entry->attribute->attr.typeDescriptor->offset >= 4096) {
+      fprintf(fp, ".data\n");
+      fprintf(fp, ".ICS%d: .word %d\n", iconst_label_number_s, reg_int[reg_number].entry->attribute->attr.typeDescriptor->offset);
+      fprintf(fp, ".text\n");
+      int tmp_reg = GetReg(INT_T);
+      fprintf(fp, "\tla\tx%d, .ICS%d\n", tmp_reg, iconst_label_number_s);
+      fprintf(fp, "\tlw\tx%d,0(x%d)\n", tmp_reg, tmp_reg);
+      fprintf(fp, "\tsub\tx%d,fp,x%d\n", tmp_reg, tmp_reg);
+      fprintf(fp, "\tsw\tx%d,0(x%d)\n", reg_number, tmp_reg);
+      FreeReg(tmp_reg, INT_T);
+      iconst_label_number_s++;
+    } else {
+      fprintf(fp, "\tsw\tx%d,-%d(fp)\n", reg_number, reg_int[reg_number].entry->attribute->attr.typeDescriptor->offset);
+    }
     reg_int[reg_number].dirty = 0;
   } else if (reg_type == FLOAT_S) {
-    fprintf(fp, "\tfsw\tf%d,-%d(fp)\n", reg_number, reg_float[reg_number].entry->attribute->attr.typeDescriptor->offset);
+    if (reg_float[reg_number].entry->attribute->attr.typeDescriptor->offset >= 4096) {
+      fprintf(fp, ".data\n");
+      fprintf(fp, ".ICS%d: .word %d\n", iconst_label_number_s, reg_float[reg_number].entry->attribute->attr.typeDescriptor->offset);
+      fprintf(fp, ".text\n");
+      int tmp_reg = GetReg(INT_T);
+      fprintf(fp, "\tla\tx%d, .ICS%d\n", tmp_reg, iconst_label_number_s);
+      fprintf(fp, "\tlw\tx%d,0(x%d)\n", tmp_reg, tmp_reg);
+      fprintf(fp, "\tsub\tx%d,fp,x%d\n", tmp_reg, tmp_reg);
+      fprintf(fp, "\tfsw\tf%d,0(x%d)\n", reg_number, tmp_reg);
+      FreeReg(tmp_reg, INT_T);
+      iconst_label_number_s++;
+    } else {
+      fprintf(fp, "\tfsw\tf%d,-%d(fp)\n", reg_number, reg_float[reg_number].entry->attribute->attr.typeDescriptor->offset);
+    }
     reg_float[reg_number].dirty = 0;
   }
 }

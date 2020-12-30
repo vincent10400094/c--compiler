@@ -252,11 +252,39 @@ int LoadVariable(AST_NODE *id_node) {
       }
     } else {  // local variable
       if (id_node->dataType == INT_TYPE) {
-        reg = GetReg(INT_S);
-        fprintf(fp, "\tlw\tx%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
+        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+          reg = GetReg(INT_S);
+          fprintf(fp, ".data\n");
+          fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
+          fprintf(fp, ".text\n");
+          tmp_reg = GetReg(INT_T);
+          fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
+          fprintf(fp, "\tlw\tx%d,0(x%d)\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tsub\tx%d,fp,x%d\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tlw\tx%d,0(x%d)\n", reg, tmp_reg);
+          FreeReg(tmp_reg, INT_T);
+          iconst_label_number++;
+        } else {
+          reg = GetReg(INT_S);
+          fprintf(fp, "\tlw\tx%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
+        }
       } else if (id_node->dataType == FLOAT_TYPE) {
-        reg = GetReg(FLOAT_S);
-        fprintf(fp, "\tflw\tf%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
+        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+          reg = GetReg(FLOAT_S);
+          fprintf(fp, ".data\n");
+          fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
+          fprintf(fp, ".text\n");
+          tmp_reg = GetReg(INT_T);
+          fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
+          fprintf(fp, "\tlw\tx%d,0(x%d)\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tsub\tx%d,fp,x%d\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tflw\tf%d,0(x%d)\n", reg, tmp_reg);
+          FreeReg(tmp_reg, INT_T);
+          iconst_label_number++;
+        } else {
+          reg = GetReg(FLOAT_S);
+          fprintf(fp, "\tflw\tf%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
+        }
       }
     }
     if (id_node->dataType == INT_TYPE) {
@@ -287,28 +315,41 @@ int LoadVariable(AST_NODE *id_node) {
       int vp = GenVp(id_node);
       fprintf(fp, "\tadd\tx%d,fp,x%d\n", vp, vp);
       if (id_node->dataType == INT_TYPE) {
-        reg = GetReg(INT_T);
-        fprintf(fp, ".data\n");
-        fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
-        fprintf(fp, ".text\n");
-        tmp_reg = GetReg(INT_T);
-        fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
-        fprintf(fp, "\tflw\tf%d,0(x%d)\n", tmp_reg, tmp_reg);
-        fprintf(fp, "\tadd\tx%d,x%d,x%d\n", tmp_reg, tmp_reg, vp);
-        fprintf(fp, "\tlw\tx%d,0(x%d)\n", reg, tmp_reg);
+        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+          reg = GetReg(INT_T);
+          fprintf(fp, ".data\n");
+          fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
+          fprintf(fp, ".text\n");
+          tmp_reg = GetReg(INT_T);
+          fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
+          fprintf(fp, "\tlw\tx%d,0(x%d)\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tsub\tx%d,x%d,x%d\n", tmp_reg, vp, tmp_reg);
+          fprintf(fp, "\tlw\tx%d,0(x%d)\n", reg, tmp_reg);
+          iconst_label_number++;
+          FreeReg(tmp_reg, INT_T);
+        } else {
+          reg = GetReg(INT_T);
+          fprintf(fp, "\tlw\tx%d,-%d(x%d)\n", reg, entry->attribute->attr.typeDescriptor->offset, vp);
+        }
       } else if (id_node->dataType == FLOAT_TYPE) {
-        reg = GetReg(FLOAT_T);
-        fprintf(fp, ".data\n");
-        fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
-        fprintf(fp, ".text\n");
-        tmp_reg = GetReg(INT_T);
-        fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
-        fprintf(fp, "\tflw\tf%d,0(x%d)\n", tmp_reg, tmp_reg);
-        fprintf(fp, "\tadd\tx%d,x%d,x%d\n", tmp_reg, tmp_reg, vp);
-        fprintf(fp, "\tflw\tf%d,0(x%d)\n", reg, tmp_reg);
+        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+          reg = GetReg(FLOAT_T);
+          fprintf(fp, ".data\n");
+          fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
+          fprintf(fp, ".text\n");
+          tmp_reg = GetReg(INT_T);
+          fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
+          fprintf(fp, "\tlw\tx%d,0(x%d)\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tsub\tx%d,x%d,x%d\n", tmp_reg, vp, tmp_reg);
+          fprintf(fp, "\tflw\tf%d,0(x%d)\n", reg, tmp_reg);
+          iconst_label_number++;
+          FreeReg(tmp_reg, INT_T);
+        } else {
+          reg = GetReg(FLOAT_T);
+          fprintf(fp, "\tflw\tf%d,-%d(x%d)\n", reg, entry->attribute->attr.typeDescriptor->offset, vp);
+        }
       }
       FreeReg(vp, INT_T);
-      FreeReg(tmp_reg, INT_T);
     }
   }
   return reg;
@@ -345,13 +386,14 @@ int GenExpr(AST_NODE *expr_node) {
     }
     int reg, tmp_reg;
     reg = LoadVariable(expr_node);
+    
     if (expr_node->dataType == INT_TYPE) {
       if (CheckINT_S(reg)) {
-          tmp_reg = GetReg(INT_T);
-          fprintf(fp, "\tmv\tx%d,x%d\n", tmp_reg, reg);
-          return tmp_reg;
+        tmp_reg = GetReg(INT_T);
+        fprintf(fp, "\tmv\tx%d,x%d\n", tmp_reg, reg);
+        return tmp_reg;
       } else {
-          return reg;
+        return reg;
       }
     } else {
       if (CheckFLOAT_S(reg)) {
@@ -359,7 +401,7 @@ int GenExpr(AST_NODE *expr_node) {
         fprintf(fp, "\tfmv.s\tf%d,f%d\n", tmp_reg, reg);
         return tmp_reg;
       } else {
-          return reg;
+        return reg;
       }
     }
   } else if (expr_node->nodeType == STMT_NODE) {
@@ -695,7 +737,7 @@ void GenReturnStmt(AST_NODE *return_node) {
       FreeReg(rs, FLOAT_T);
     }
   }
-  
+
   // PrintRegUsage();
   fprintf(fp, "\tj\t_end_%s\n", function_decl_node->child->rightSibling->semantic_value.identifierSemanticValue.identifierName);
 }
@@ -744,6 +786,7 @@ void GenWhileStmt(AST_NODE *stmt_node) {
 
 void GenAssignment(AST_NODE *assignment_node) {
   AST_NODE *id_node = assignment_node->child;
+  SymbolTableEntry *entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
   int rs = GenExpr(id_node->rightSibling);
   assert(id_node->rightSibling->dataType != NONE_TYPE);
   if (id_node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
@@ -785,11 +828,39 @@ void GenAssignment(AST_NODE *assignment_node) {
       int vp = GenVp(id_node);
       fprintf(fp, "\tadd\tx%d,fp,x%d\n", vp, vp);
       if (id_node->dataType == INT_TYPE) {
-        fprintf(fp, "\tsw\tx%d,-%d(x%d)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset, vp);
-        FreeReg(rs, INT_T);
+        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+          fprintf(fp, ".data\n");
+          fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
+          fprintf(fp, ".text\n");
+          int tmp_reg = GetReg(INT_T);
+          fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
+          fprintf(fp, "\tlw\tx%d,0(x%d)\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tsub\tx%d,x%d,x%d\n", tmp_reg, vp, tmp_reg);
+          fprintf(fp, "\tsw\tx%d,0(x%d)\n", rs, tmp_reg);
+          FreeReg(tmp_reg, INT_T);
+          FreeReg(rs, INT_T);
+          iconst_label_number++;
+        } else {
+          fprintf(fp, "\tsw\tx%d,-%d(x%d)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset, vp);
+          FreeReg(rs, INT_T);
+        }
       } else if (id_node->dataType == FLOAT_TYPE) {
-        fprintf(fp, "\tfsw\tf%d,-%d(x%d)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset, vp);
-        FreeReg(rs, FLOAT_T);
+        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+          fprintf(fp, ".data\n");
+          fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
+          fprintf(fp, ".text\n");
+          int tmp_reg = GetReg(INT_T);
+          fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
+          fprintf(fp, "\tlw\tx%d,0(x%d)\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tsub\tx%d,x%d,x%d\n", tmp_reg, vp, tmp_reg);
+          fprintf(fp, "\tfsw\tf%d,0(x%d)\n", rs, tmp_reg);
+          FreeReg(tmp_reg, INT_T);
+          FreeReg(rs, FLOAT_T);
+          iconst_label_number++;
+        } else {
+          fprintf(fp, "\tfsw\tf%d,-%d(x%d)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset, vp);
+          FreeReg(rs, FLOAT_T);
+        }
       }
       FreeReg(vp, INT_T);
     }
