@@ -246,34 +246,30 @@ void StoreStaticVariables() {
   for (int i = 0; i < 10; i++) {
     int reg_number = int_s_reg_list[i];
     if (reg_int[reg_number].dirty && reg_int[reg_number].entry->scope == 0) {
-      StoreStaticVariable(reg_number, INT_S);
+      // StoreStaticVariable(reg_number, INT_S);
+      FreeReg(reg_number, INT_S);
     }
   }
   for (int i = 0; i < 12; i++) {
     int reg_number = float_s_reg_list[i];
     if (reg_float[reg_number].dirty && reg_float[reg_number].entry->scope == 0) {
-      StoreStaticVariable(reg_number, FLOAT_S);
+      // StoreStaticVariable(reg_number, FLOAT_S);
+      FreeReg(reg_number, FLOAT_S);
     }
   }
 }
 
-void StoreDirtyRegisters() {
+void FreeSavedRegisters() {
   for (int i = 0; i < 10; i++) {
     int reg_number = int_s_reg_list[i];
-    if (reg_int[reg_number].dirty) {
-      if (reg_int[reg_number].entry->scope == 0)
-        StoreStaticVariable(reg_number, INT_S);
-      else
-        StoreLocalVariable(reg_number, INT_S);
+    if (reg_int[reg_number].used) {
+      FreeReg(reg_number, INT_S);
     }
   }
   for (int i = 0; i < 12; i++) {
     int reg_number = float_s_reg_list[i];
-    if (reg_float[reg_number].dirty) {
-      if (reg_float[reg_number].entry->scope == 0)
-        StoreStaticVariable(reg_number, FLOAT_S);
-      else
-        StoreLocalVariable(reg_number, FLOAT_S);
+    if (reg_float[reg_number].used) {
+      FreeReg(reg_number, FLOAT_S);
     }
   }
 }
@@ -797,7 +793,6 @@ int GenExpr(AST_NODE *expr_node) {
       switch (semanticValue->op.unaryOp) {
         case UNARY_OP_LOGICAL_NEGATION: {
           fprintf(fp, "\tseqz\tx%d,x%d\n", rs1, rs1);
-          fprintf(fp, "\txori\tx%d,x%d,1\n", rs1, rs1);
           break;
         }
         case UNARY_OP_NEGATIVE: {
@@ -819,7 +814,6 @@ int GenExpr(AST_NODE *expr_node) {
           rd = GetReg(INT_T);
           fprintf(fp, "\tfmv.s.x f%d, zero\n", zero);
           fprintf(fp, "\tfeq.s x%d, f%d, f%d\n", rd, rs1, zero);
-          fprintf(fp, "\txori\tx%d,x%d,1\n", rd, rd);
           FreeReg(zero, FLOAT_T);
           FreeReg(rs1, FLOAT_T);
           expr_node->dataType = INT_TYPE;
@@ -850,7 +844,7 @@ void PassParameter() {
 }
 
 void GenFunctionCall(AST_NODE *stmt_node) {
-  StoreStaticVariables();
+  FreeSavedRegisters();
   AST_NODE *function_id_node = stmt_node->child;
   if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "write") == 0) {
     AST_NODE *parameter_node = function_id_node->rightSibling->child;
@@ -912,6 +906,8 @@ void GenReturnStmt(AST_NODE *return_node) {
     }
   }
   StoreStaticVariables();
+  puts("Function end");
+  PrintRegUsage();
   fprintf(fp, "\tj\t_end_%s\n", function_decl_node->child->rightSibling->semantic_value.identifierSemanticValue.identifierName);
 }
 
@@ -941,7 +937,7 @@ void GenIfStmt(AST_NODE *stmt_node) {
 void GenWhileStmt(AST_NODE *stmt_node) {
   AST_NODE *test_node = stmt_node->child;
   int label_number = max_label_number++;
-  StoreDirtyRegisters();
+  StoreStaticVariables();
   fprintf(fp, "_Test%d:\n", label_number);
   int test_reg = GenExpr(test_node);
   fprintf(fp, "\tbeqz\tx%d,_Lexit%d\n", test_reg, label_number);
@@ -952,7 +948,7 @@ void GenWhileStmt(AST_NODE *stmt_node) {
     FreeReg(test_reg, FLOAT_T);
   }
   GenStatement(test_node->rightSibling);
-  StoreDirtyRegisters();
+  FreeSavedRegisters();
   fprintf(fp, "\tj\t_Test%d\n", label_number);
   fprintf(fp, "_Lexit%d:\n", label_number);
 }
