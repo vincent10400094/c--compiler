@@ -12,6 +12,7 @@
 int AR_offset = 0;
 int max_label_number = 1;
 int sc_label_number = 1;
+int iconst_label_number = 1;
 int fconst_label_number = 1;
 int normal_label = 1;
 
@@ -287,12 +288,27 @@ int LoadVariable(AST_NODE *id_node) {
       fprintf(fp, "\tadd\tx%d,fp,x%d\n", vp, vp);
       if (id_node->dataType == INT_TYPE) {
         reg = GetReg(INT_T);
-        fprintf(fp, "\tlw\tx%d,-%d(x%d)\n", reg, entry->attribute->attr.typeDescriptor->offset, vp);
+        fprintf(fp, ".data\n");
+        fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
+        fprintf(fp, ".text\n");
+        tmp_reg = GetReg(INT_T);
+        fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
+        fprintf(fp, "\tflw\tf%d,0(x%d)\n", tmp_reg, tmp_reg);
+        fprintf(fp, "\tadd\tx%d,x%d,x%d\n", tmp_reg, tmp_reg, vp);
+        fprintf(fp, "\tlw\tx%d,0(x%d)\n", reg, tmp_reg);
       } else if (id_node->dataType == FLOAT_TYPE) {
         reg = GetReg(FLOAT_T);
-        fprintf(fp, "\tflw\tf%d,-%d(x%d)\n", reg, entry->attribute->attr.typeDescriptor->offset, vp);
+        fprintf(fp, ".data\n");
+        fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
+        fprintf(fp, ".text\n");
+        tmp_reg = GetReg(INT_T);
+        fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
+        fprintf(fp, "\tflw\tf%d,0(x%d)\n", tmp_reg, tmp_reg);
+        fprintf(fp, "\tadd\tx%d,x%d,x%d\n", tmp_reg, tmp_reg, vp);
+        fprintf(fp, "\tflw\tf%d,0(x%d)\n", reg, tmp_reg);
       }
       FreeReg(vp, INT_T);
+      FreeReg(tmp_reg, INT_T);
     }
   }
   return reg;
@@ -679,7 +695,7 @@ void GenReturnStmt(AST_NODE *return_node) {
       FreeReg(rs, FLOAT_T);
     }
   }
-  StoreStaticVariables();
+  
   // PrintRegUsage();
   fprintf(fp, "\tj\t_end_%s\n", function_decl_node->child->rightSibling->semantic_value.identifierSemanticValue.identifierName);
 }
@@ -787,6 +803,7 @@ void GenFunctionDeclaration(AST_NODE *declaration_node) {
   fprintf(fp, "_start_%s:\n", function_id_node->semantic_value.identifierSemanticValue.identifierName);
   GenPrologue(function_id_node->semantic_value.identifierSemanticValue.identifierName);
   GenBlockNode(function_id_node->rightSibling->rightSibling);
+  StoreStaticVariables();
   GenEpilogue(function_id_node->semantic_value.identifierSemanticValue.identifierName);
 }
 
