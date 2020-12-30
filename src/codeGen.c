@@ -69,25 +69,30 @@ void InitRegs() {
   }
 }
 
+int cnt_int = 0, cnt_float;
+
 int GetRegToFree(RegType reg_type) {
   assert(reg_type == INT_S || reg_type == FLOAT_S);
-  int candidate = 0, max_ref_count = INT_MAX;
   if (reg_type == INT_S) {
-    for (int i = 0; i < 10; i++) {
-      if (reg_int[int_s_reg_list[i]].ref_count < max_ref_count) {
-        candidate = int_s_reg_list[i];
-        max_ref_count = reg_int[candidate].ref_count;
-      }
-    }
-    return candidate;
+    if (cnt_int >= 10)
+      cnt_int = 0;
+    return int_s_reg_list[cnt_int++];
   } else {
-    for (int i = 0; i < 12; i++) {
-      if (reg_float[float_s_reg_list[i]].ref_count < max_ref_count) {
-        candidate = float_s_reg_list[i];
-        max_ref_count = reg_float[candidate].ref_count;
-      }
-    }
-    return candidate;
+    if (cnt_float >= 12)
+      cnt_float = 0;
+    return float_s_reg_list[cnt_float++];
+  }
+}
+
+void PrintRegUsage() {
+  puts("================[Register Usage]==================");
+  for (int i = 0; i < 10; i++) {
+    if (reg_int[int_s_reg_list[i]].used)
+      printf("x%d associated with %s, dirty=%s, ref_count=%d\n", int_s_reg_list[i], reg_int[int_s_reg_list[i]].entry->name, reg_int[int_s_reg_list[i]].dirty ? "True" : "Flase", reg_int[int_s_reg_list[i]].ref_count);
+  }
+  for (int i = 0; i < 12; i++) {
+    if (reg_float[float_s_reg_list[i]].used)
+      printf("f%d associated with %s, dirty=%s, ref_count=%d\n", float_s_reg_list[i], reg_float[float_s_reg_list[i]].entry->name, reg_float[float_s_reg_list[i]].dirty ? "True" : "Flase", reg_float[float_s_reg_list[i]].ref_count);
   }
 }
 
@@ -111,7 +116,9 @@ int GetReg(RegType reg_type) {
       }
       // TODO: all registrs are in-use
       int reg_to_free = GetRegToFree(INT_S);
+      printf("free x%d\n", reg_to_free);
       FreeReg(reg_to_free, INT_S);
+      reg_int[reg_to_free].used = 1;
       return reg_to_free;
     }
     case FLOAT_T: {
@@ -398,6 +405,7 @@ void GenStatement(AST_NODE *stmt_node) {
     switch (stmt_node->semantic_value.stmtSemanticValue.kind) {
       case ASSIGN_STMT: {
         GenAssignment(stmt_node);
+        PrintRegUsage();
         break;
       }
       case IF_STMT: {
@@ -924,6 +932,7 @@ void GenWhileStmt(AST_NODE *stmt_node) {
   }
   GenStatement(test_node->rightSibling);
   StoreDirtyRegistersAll();
+  PrintRegUsage();
   fprintf(fp, "\tj\t_Test%d\n", label_number);
   fprintf(fp, "_Lexit%d:\n", label_number);
 }
@@ -942,6 +951,7 @@ void GenAssignment(AST_NODE *assignment_node) {
       reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
       reg_int[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
       reg_int[tmp_reg].dirty = 1;
+      reg_int[tmp_reg].ref_count += 1;
     } else if (id_node->rightSibling->dataType == FLOAT_TYPE) {
       // fprintf(fp, "\tmv\tx%d,x%d\n", tmp_reg, rs);
       // reg_float[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
