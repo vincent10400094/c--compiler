@@ -562,7 +562,17 @@ int GenExpr(AST_NODE *expr_node) {
     } else {
       expr_node->dataType = expr_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->properties.arrayProperties.elementType;
     }
-    return LoadVariable(expr_node);
+    int reg, tmp_reg;
+    reg = LoadVariable(expr_node);
+    assert(expr_node->dataType == INT_TYPE || expr_node->dataType == FLOAT_TYPE);
+    if (expr_node->dataType == INT_TYPE) {
+      tmp_reg = GetReg(INT_T);
+      fprintf(fp, "\tmv\tx%d,x%d\n", tmp_reg, reg);
+    } else {
+      tmp_reg = GetReg(FLOAT_T);
+      fprintf(fp, "\tfmv.s\tf%d,f%d\n", tmp_reg, reg);
+    }
+    return tmp_reg;
   } else if (expr_node->nodeType == STMT_NODE) {
     // gen function call
     if ((expr_node->child->semantic_value.identifierSemanticValue.symbolTableEntry && expr_node->child->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->returnType == INT_TYPE) ||
@@ -588,10 +598,8 @@ int GenExpr(AST_NODE *expr_node) {
     // both children are INT_TYPE
     if (expr_node->child->dataType == INT_TYPE && expr_node->child->rightSibling->dataType == INT_TYPE) {
       expr_node->dataType = INT_TYPE;
-      if (expr_node->child->nodeType != IDENTIFIER_NODE)
-        FreeReg(rs1, INT_T);
-      if (expr_node->child->rightSibling->nodeType != IDENTIFIER_NODE)
-        FreeReg(rs2, INT_T);
+      FreeReg(rs1, INT_T);
+      FreeReg(rs2, INT_T);
       int rd = GetReg(INT_T);
       switch (semanticValue->op.binaryOp) {
         case BINARY_OP_ADD: {
@@ -666,10 +674,8 @@ int GenExpr(AST_NODE *expr_node) {
       }
       return rd;
     } else if (expr_node->child->dataType == FLOAT_TYPE && expr_node->child->rightSibling->dataType == FLOAT_TYPE) {
-      if (expr_node->child->nodeType != IDENTIFIER_NODE)
-        FreeReg(rs1, FLOAT_T);
-      if (expr_node->child->rightSibling->nodeType != IDENTIFIER_NODE)
-        FreeReg(rs2, FLOAT_T);
+      FreeReg(rs1, FLOAT_T);
+      FreeReg(rs2, FLOAT_T);
       int rd;
       switch (semanticValue->op.binaryOp) {
         case BINARY_OP_ADD: {
