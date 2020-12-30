@@ -22,7 +22,7 @@ void FreeReg(int reg_number, RegType reg_type);
 void InitRegs();
 void StoreStaticVariable(int reg_number, RegType reg_type);
 void StoreLocalVariable(int reg_number, RegType reg_type);
-void StoreDirtyRegisters();
+void StoreStaticVariables();
 
 // global variables for labels
 int AR_offset = 0;
@@ -86,14 +86,13 @@ int GetRegToFree(RegType reg_type) {
 
 void PrintRegUsage() {
   puts("================[Register Usage]==================");
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 10; i++)
     if (reg_int[int_s_reg_list[i]].used)
       printf("x%d associated with %s, dirty=%s, ref_count=%d\n", int_s_reg_list[i], reg_int[int_s_reg_list[i]].entry->name, reg_int[int_s_reg_list[i]].dirty ? "True" : "Flase", reg_int[int_s_reg_list[i]].ref_count);
-  }
-  for (int i = 0; i < 12; i++) {
+  for (int i = 0; i < 12; i++)
     if (reg_float[float_s_reg_list[i]].used)
       printf("f%d associated with %s, dirty=%s, ref_count=%d\n", float_s_reg_list[i], reg_float[float_s_reg_list[i]].entry->name, reg_float[float_s_reg_list[i]].dirty ? "True" : "Flase", reg_float[float_s_reg_list[i]].ref_count);
-  }
+  puts("================[End]==================");
 }
 
 int GetReg(RegType reg_type) {
@@ -116,7 +115,6 @@ int GetReg(RegType reg_type) {
       }
       // TODO: all registrs are in-use
       int reg_to_free = GetRegToFree(INT_S);
-      printf("free x%d\n", reg_to_free);
       FreeReg(reg_to_free, INT_S);
       reg_int[reg_to_free].used = 1;
       return reg_to_free;
@@ -135,17 +133,18 @@ int GetReg(RegType reg_type) {
         if (!reg_float[float_s_reg_list[i]].used) {
           reg_float[float_s_reg_list[i]].used = 1;
           return float_s_reg_list[i];
+          printf("%d\n", float_s_reg_list[i]);
         }
       }
       // TODO: all registrs are in-use
       int reg_to_free = GetRegToFree(FLOAT_S);
+      printf("free f%d\n", reg_to_free);
       FreeReg(reg_to_free, FLOAT_S);
+      reg_float[reg_to_free].used = 1;
       return reg_to_free;
     }
   }
   fprintf(stderr, "This should not happen, run out of registers\n");
-  fflush(fp);
-  fclose(fp);
   exit(1);
 }
 
@@ -176,6 +175,7 @@ void FreeReg(int reg_number, RegType reg_type) {
     case INT_S: {
       if (!CheckINT_S(reg_number))
         return;
+      printf("free x%d\n", reg_number);
       if (reg_int[reg_number].dirty) {
         if (reg_int[reg_number].entry->scope == 0) {
           StoreStaticVariable(reg_number, reg_type);
@@ -198,6 +198,7 @@ void FreeReg(int reg_number, RegType reg_type) {
     case FLOAT_S: {
       if (!CheckFLOAT_S(reg_number))
         return;
+      printf("free f%d\n", reg_number);
       if (reg_float[reg_number].dirty) {
         if (reg_float[reg_number].entry->scope == 0) {
           StoreStaticVariable(reg_number, reg_type);
@@ -205,9 +206,9 @@ void FreeReg(int reg_number, RegType reg_type) {
           StoreLocalVariable(reg_number, reg_type);
         }
       }
-      reg_int[reg_number].entry->attribute->attr.typeDescriptor->reg = 0;
-      reg_int[reg_number].dirty = 0;
-      reg_int[reg_number].ref_count = 0;
+      reg_float[reg_number].entry->attribute->attr.typeDescriptor->reg = 0;
+      reg_float[reg_number].dirty = 0;
+      reg_float[reg_number].ref_count = 0;
       reg_float[reg_number].used = 0;
       break;
     }
@@ -216,18 +217,15 @@ void FreeReg(int reg_number, RegType reg_type) {
 
 void StoreStaticVariable(int reg_number, RegType reg_type) {
   assert(reg_type == INT_S || reg_type == FLOAT_S);
-  if (reg_type == INT_S) {
-    SymbolTableEntry *entry = reg_int[reg_number].entry;
-    int tmp_reg = GetReg(INT_T);
-    fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, entry->name);
-    if (entry->attribute->attr.typeDescriptor->properties.dataType == INT_TYPE) {
-      fprintf(fp, "\tsw\tx%d,0(x%d)\n", reg_number, tmp_reg);
-    } else if (entry->attribute->attr.typeDescriptor->properties.dataType == FLOAT_TYPE) {
-      fprintf(fp, "\tfsw\tft%d,0(x%d)\n", reg_number, tmp_reg);
-    }
-    FreeReg(tmp_reg, INT_T);
-  } else if (reg_type == FLOAT_S) {
+  SymbolTableEntry *entry = reg_int[reg_number].entry;
+  int tmp_reg = GetReg(INT_T);
+  fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, entry->name);
+  if (entry->attribute->attr.typeDescriptor->properties.dataType == INT_TYPE) {
+    fprintf(fp, "\tsw\tx%d,0(x%d)\n", reg_number, tmp_reg);
+  } else if (entry->attribute->attr.typeDescriptor->properties.dataType == FLOAT_TYPE) {
+    fprintf(fp, "\tfsw\tf%d,0(x%d)\n", reg_number, tmp_reg);
   }
+  FreeReg(tmp_reg, INT_T);
 }
 
 void StoreLocalVariable(int reg_number, RegType reg_type) {
@@ -235,11 +233,11 @@ void StoreLocalVariable(int reg_number, RegType reg_type) {
   if (reg_type == INT_S) {
     fprintf(fp, "\tsw\tx%d,-%d(fp)\n", reg_number, reg_int[reg_number].entry->attribute->attr.typeDescriptor->offset);
   } else if (reg_type == FLOAT_S) {
-    fprintf(fp, "\tfsw\tft%d,-%d(fp)\n", reg_number, reg_float[reg_number].entry->attribute->attr.typeDescriptor->offset);
+    fprintf(fp, "\tfsw\tf%d,-%d(fp)\n", reg_number, reg_float[reg_number].entry->attribute->attr.typeDescriptor->offset);
   }
 }
 
-void StoreDirtyRegisters() {
+void StoreStaticVariables() {
   for (int i = 0; i < 10; i++) {
     int reg_number = int_s_reg_list[i];
     if (reg_int[reg_number].dirty && reg_int[reg_number].entry->scope == 0) {
@@ -254,7 +252,7 @@ void StoreDirtyRegisters() {
   }
 }
 
-void StoreDirtyRegistersAll() {
+void StoreDirtyRegisters() {
   for (int i = 0; i < 10; i++) {
     int reg_number = int_s_reg_list[i];
     if (reg_int[reg_number].dirty) {
@@ -330,7 +328,7 @@ void GenSymbolDeclaration(AST_NODE *declaration_list_node) {
                   FreeReg(rs, INT_T);
                 } else if (init_node->dataType == FLOAT_TYPE) {
                   AllocateSymbol(id_node->semantic_value.identifierSemanticValue.symbolTableEntry, 4);
-                  fprintf(fp, "\tfsw\tft%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
+                  fprintf(fp, "\tfsw\tf%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
                   FreeReg(rs, FLOAT_T);
                 }
               }
@@ -404,6 +402,7 @@ void GenStatement(AST_NODE *stmt_node) {
   if (stmt_node->nodeType == STMT_NODE) {
     switch (stmt_node->semantic_value.stmtSemanticValue.kind) {
       case ASSIGN_STMT: {
+        puts("Gen assign");
         GenAssignment(stmt_node);
         PrintRegUsage();
         break;
@@ -416,6 +415,7 @@ void GenStatement(AST_NODE *stmt_node) {
         break;
       }
       case FUNCTION_CALL_STMT: {
+        puts("Gen functionCall");
         GenFunctionCall(stmt_node);
         break;
       }
@@ -482,7 +482,7 @@ int LoadVariable(AST_NODE *id_node) {
         fprintf(fp, "\tlw\tx%d,0(x%d)\n", reg, tmp_reg);
       } else if (id_node->dataType == FLOAT_TYPE) {
         reg = GetReg(FLOAT_S);
-        fprintf(fp, "\tflw\tft%d,0(x%d)\n", reg, tmp_reg);
+        fprintf(fp, "\tflw\tf%d,0(x%d)\n", reg, tmp_reg);
       }
     } else {  // local variable
       if (id_node->dataType == INT_TYPE) {
@@ -490,7 +490,7 @@ int LoadVariable(AST_NODE *id_node) {
         fprintf(fp, "\tlw\tx%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
       } else if (id_node->dataType == FLOAT_TYPE) {
         reg = GetReg(FLOAT_S);
-        fprintf(fp, "\tflw\tft%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
+        fprintf(fp, "\tflw\tf%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
       }
     }
     if (id_node->dataType == INT_TYPE) {
@@ -513,7 +513,7 @@ int LoadVariable(AST_NODE *id_node) {
         fprintf(fp, "\tlw\tx%d,0(x%d)\n", reg, tmp_reg);
       } else if (id_node->dataType == FLOAT_TYPE) {
         reg = GetReg(FLOAT_T);
-        fprintf(fp, "\tflw\tft%d,0(x%d)\n", reg, tmp_reg);
+        fprintf(fp, "\tflw\tf%d,0(x%d)\n", reg, tmp_reg);
       }
       FreeReg(tmp_reg, INT_T);
       FreeReg(vp, INT_T);
@@ -525,7 +525,7 @@ int LoadVariable(AST_NODE *id_node) {
         fprintf(fp, "\tlw\tx%d,-%d(x%d)\n", reg, entry->attribute->attr.typeDescriptor->offset, vp);
       } else if (id_node->dataType == FLOAT_TYPE) {
         reg = GetReg(FLOAT_T);
-        fprintf(fp, "\tflw\tft%d,-%d(x%d)\n", reg, entry->attribute->attr.typeDescriptor->offset, vp);
+        fprintf(fp, "\tflw\tf%d,-%d(x%d)\n", reg, entry->attribute->attr.typeDescriptor->offset, vp);
       }
       FreeReg(vp, INT_T);
     }
@@ -550,8 +550,8 @@ int GenExpr(AST_NODE *expr_node) {
       fprintf(fp, ".text\n");
       int tmp_reg = GetReg(INT_T);
       fprintf(fp, "\tla\tx%d, .FC%d\n", tmp_reg, fconst_label_number);
-      int reg = GetReg(FLOAT_S);
-      fprintf(fp, "\tflw\tft%d,0(x%d)\n", reg, tmp_reg);
+      int reg = GetReg(FLOAT_T);
+      fprintf(fp, "\tflw\tf%d,0(x%d)\n", reg, tmp_reg);
       FreeReg(tmp_reg, INT_T);
       fconst_label_number++;
       return reg;
@@ -575,7 +575,7 @@ int GenExpr(AST_NODE *expr_node) {
     } else {
       GenFunctionCall(expr_node);
       int reg = GetReg(FLOAT_T);
-      fprintf(fp, "\tfmv.s\tft%d, fa0\n", reg);
+      fprintf(fp, "\tfmv.s\tf%d, fa0\n", reg);
       expr_node->dataType = FLOAT_TYPE;
       return reg;
     }
@@ -674,62 +674,62 @@ int GenExpr(AST_NODE *expr_node) {
       switch (semanticValue->op.binaryOp) {
         case BINARY_OP_ADD: {
           rd = GetReg(FLOAT_T);
-          fprintf(fp, "\tfadd.s\tft%d,ft%d,ft%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tfadd.s\tf%d,f%d,f%d\n", rd, rs1, rs2);
           expr_node->dataType = FLOAT_TYPE;
           break;
         }
         case BINARY_OP_SUB: {
           rd = GetReg(FLOAT_T);
-          fprintf(fp, "\tfsub.s\tft%d,ft%d,ft%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tfsub.s\tf%d,f%d,f%d\n", rd, rs1, rs2);
           expr_node->dataType = FLOAT_TYPE;
           break;
         }
         case BINARY_OP_MUL: {
           rd = GetReg(FLOAT_T);
-          fprintf(fp, "\tfmul.s\tft%d,ft%d,ft%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tfmul.s\tf%d,f%d,f%d\n", rd, rs1, rs2);
           expr_node->dataType = FLOAT_TYPE;
           break;
         }
         case BINARY_OP_DIV: {
           rd = GetReg(FLOAT_T);
-          fprintf(fp, "\tfdiv.s\tft%d,ft%d,ft%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tfdiv.s\tf%d,f%d,f%d\n", rd, rs1, rs2);
           expr_node->dataType = FLOAT_TYPE;
           break;
         }
         case BINARY_OP_EQ: {
           rd = GetReg(INT_T);
-          fprintf(fp, "\tfeq.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tfeq.s\tx%d,f%d,f%d\n", rd, rs1, rs2);
           expr_node->dataType = INT_TYPE;
           break;
         }
         case BINARY_OP_NE: {
           rd = GetReg(INT_T);
-          fprintf(fp, "\tfeq.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tfeq.s\tx%d,f%d,f%d\n", rd, rs1, rs2);
           fprintf(fp, "\tseqz\tx%d,x%d\n", rd, rd);
           expr_node->dataType = INT_TYPE;
           break;
         }
         case BINARY_OP_GE: {
           rd = GetReg(INT_T);
-          fprintf(fp, "\tfge.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tfge.s\tx%d,f%d,f%d\n", rd, rs1, rs2);
           expr_node->dataType = INT_TYPE;
           break;
         }
         case BINARY_OP_GT: {
           rd = GetReg(INT_T);
-          fprintf(fp, "\tfgt.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tfgt.s\tx%d,f%d,f%d\n", rd, rs1, rs2);
           expr_node->dataType = INT_TYPE;
           break;
         }
         case BINARY_OP_LE: {
           rd = GetReg(INT_T);
-          fprintf(fp, "\tfle.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tfle.s\tx%d,f%d,f%d\n", rd, rs1, rs2);
           expr_node->dataType = INT_TYPE;
           break;
         }
         case BINARY_OP_LT: {
           rd = GetReg(INT_T);
-          fprintf(fp, "\tflt.s\tx%d,ft%d,ft%d\n", rd, rs1, rs2);
+          fprintf(fp, "\tflt.s\tx%d,f%d,f%d\n", rd, rs1, rs2);
           expr_node->dataType = INT_TYPE;
           break;
         }
@@ -737,10 +737,10 @@ int GenExpr(AST_NODE *expr_node) {
           rd = GetReg(INT_T);
           int zero = GetReg(FLOAT_T);
           int tmp = GetReg(INT_T);
-          fprintf(fp, "\tfmv.s.x\tft%d, zero\n", zero);
-          fprintf(fp, "\tfeq.s\tx%d, ft%d, ft%d\n", tmp, rs1, zero);
+          fprintf(fp, "\tfmv.s.x\tf%d, zero\n", zero);
+          fprintf(fp, "\tfeq.s\tx%d, f%d, f%d\n", tmp, rs1, zero);
           fprintf(fp, "\tbnez\tx%d, .L%d\n", tmp, normal_label);
-          fprintf(fp, "\tfeq.s\tx%d, ft%d, ft%d\n", tmp, rs2, zero);
+          fprintf(fp, "\tfeq.s\tx%d, f%d, f%d\n", tmp, rs2, zero);
           fprintf(fp, "\tbnez\tx%d, .L%d\n", tmp, normal_label);
           fprintf(fp, "\tli\tx%d, 1\n", rd);
           fprintf(fp, "\tj\t.L%d\n", normal_label + 1);
@@ -756,10 +756,10 @@ int GenExpr(AST_NODE *expr_node) {
           rd = GetReg(INT_T);
           int zero = GetReg(FLOAT_T);
           int tmp = GetReg(INT_T);
-          fprintf(fp, "\tfmv.s.x ft%d, zero\n", zero);
-          fprintf(fp, "\tfeq.s x%d, ft%d, ft%d\n", tmp, rs1, zero);
+          fprintf(fp, "\tfmv.s.x f%d, zero\n", zero);
+          fprintf(fp, "\tfeq.s x%d, f%d, f%d\n", tmp, rs1, zero);
           fprintf(fp, "\tbeqz x%d, .L%d\n", tmp, normal_label);
-          fprintf(fp, "\tfeq.s x%d, ft%d, ft%d\n", tmp, rs2, zero);
+          fprintf(fp, "\tfeq.s x%d, f%d, f%d\n", tmp, rs2, zero);
           fprintf(fp, "\tbeqz x%d, .L%d\n", tmp, normal_label);
           fprintf(fp, "\tli x%d, 0\n", rd);
           fprintf(fp, "\tj .L%d\n", normal_label + 1);
@@ -805,8 +805,8 @@ int GenExpr(AST_NODE *expr_node) {
         case UNARY_OP_LOGICAL_NEGATION: {
           int zero = GetReg(FLOAT_T);
           rd = GetReg(INT_T);
-          fprintf(fp, "\tfmv.s.x ft%d, zero\n", zero);
-          fprintf(fp, "\tfeq.s x%d, ft%d, ft%d\n", rd, rs1, zero);
+          fprintf(fp, "\tfmv.s.x f%d, zero\n", zero);
+          fprintf(fp, "\tfeq.s x%d, f%d, f%d\n", rd, rs1, zero);
           fprintf(fp, "\txori\tx%d,x%d,1\n", rd, rd);
           FreeReg(zero, FLOAT_T);
           FreeReg(rs1, FLOAT_T);
@@ -816,8 +816,8 @@ int GenExpr(AST_NODE *expr_node) {
         case UNARY_OP_NEGATIVE: {
           int zero = GetReg(FLOAT_T);
           rd = GetReg(FLOAT_T);
-          fprintf(fp, "\tfmv.s.x ft%d, zero\n", zero);
-          fprintf(fp, "\tfsub.s\tft%d,ft%d,ft%d\n", rd, zero, rs1);
+          fprintf(fp, "\tfmv.s.x f%d, zero\n", zero);
+          fprintf(fp, "\tfsub.s\tf%d,f%d,f%d\n", rd, zero, rs1);
           FreeReg(zero, FLOAT_T);
           FreeReg(rs1, FLOAT_T);
           expr_node->dataType = FLOAT_TYPE;
@@ -861,7 +861,7 @@ void GenFunctionCall(AST_NODE *stmt_node) {
         fprintf(fp, "\tjal\t_write_int\n");
         FreeReg(rs, INT_T);
       } else if (parameter_node->dataType == FLOAT_TYPE) {
-        fprintf(fp, "\tfmv.s\tfa0,ft%d\n", rs);
+        fprintf(fp, "\tfmv.s\tfa0,f%d\n", rs);
         fprintf(fp, "\tjal\t_write_float\n");
         FreeReg(rs, FLOAT_T);
       }
@@ -871,7 +871,7 @@ void GenFunctionCall(AST_NODE *stmt_node) {
   } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "fread") == 0) {
     fprintf(fp, "\tcall\t_read_float\n");
   } else {
-    StoreDirtyRegisters();
+    StoreStaticVariables();
     // push parameter
     // push space for parameter
     fprintf(fp, "\tjal\t_start_%s\n", function_id_node->semantic_value.identifierSemanticValue.identifierName);
@@ -884,15 +884,23 @@ void GenReturnStmt(AST_NODE *return_node) {
   while (function_decl_node->nodeType != DECLARATION_NODE && function_decl_node->semantic_value.declSemanticValue.kind != FUNCTION_DECL) {
     function_decl_node = function_decl_node->parent;
   }
-  int rs = GenExpr(return_node->child);
-  fprintf(fp, "\tmv\ta0,x%d\n", rs);
-  fprintf(fp, "\tj\t_end_%s\n", function_decl_node->child->rightSibling->semantic_value.identifierSemanticValue.identifierName);
-  assert(return_node->child->dataType == INT_TYPE || return_node->child->dataType == FLOAT_TYPE);
-  if (return_node->child->dataType == INT_TYPE) {
-    FreeReg(rs, INT_T);
-  } else {
-    FreeReg(rs, FLOAT_T);
+  if (return_node->child) {  // with return value
+    int rs = GenExpr(return_node->child);
+    if (return_node->child->dataType == INT_TYPE) {
+      fprintf(fp, "\tmv\ta0,x%d\n", rs);
+    } else if (return_node->child->dataType == FLOAT_TYPE) {
+      // TODO
+      fprintf(fp, "\tfmv.s\tfa0,f%d\n", rs);
+    }
+    assert(return_node->child->dataType == INT_TYPE || return_node->child->dataType == FLOAT_TYPE);
+    if (return_node->child->dataType == INT_TYPE) {
+      FreeReg(rs, INT_T);
+    } else {
+      FreeReg(rs, FLOAT_T);
+    }
   }
+  StoreStaticVariables();
+  fprintf(fp, "\tj\t_end_%s\n", function_decl_node->child->rightSibling->semantic_value.identifierSemanticValue.identifierName);
 }
 
 void GenIfStmt(AST_NODE *stmt_node) {
@@ -931,8 +939,7 @@ void GenWhileStmt(AST_NODE *stmt_node) {
     FreeReg(test_reg, FLOAT_T);
   }
   GenStatement(test_node->rightSibling);
-  StoreDirtyRegistersAll();
-  PrintRegUsage();
+  StoreDirtyRegisters();
   fprintf(fp, "\tj\t_Test%d\n", label_number);
   fprintf(fp, "_Lexit%d:\n", label_number);
 }
@@ -944,8 +951,8 @@ void GenAssignment(AST_NODE *assignment_node) {
   if (id_node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
     // TODO: type casting
     int gg = id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->reg;
-    int tmp_reg = (gg == 0) ? GetReg(INT_S) : gg;
     if (id_node->rightSibling->dataType == INT_TYPE) {
+      int tmp_reg = (gg == 0) ? GetReg(INT_S) : gg;
       fprintf(fp, "\tmv\tx%d,x%d\n", tmp_reg, rs);
       FreeReg(rs, INT_T);
       reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
@@ -953,10 +960,13 @@ void GenAssignment(AST_NODE *assignment_node) {
       reg_int[tmp_reg].dirty = 1;
       reg_int[tmp_reg].ref_count += 1;
     } else if (id_node->rightSibling->dataType == FLOAT_TYPE) {
-      // fprintf(fp, "\tmv\tx%d,x%d\n", tmp_reg, rs);
-      // reg_float[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
-      // reg_float[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
+      int tmp_reg = (gg == 0) ? GetReg(FLOAT_S) : gg;
+      fprintf(fp, "\tmv\tf%d,f%d\n", tmp_reg, rs);
       FreeReg(rs, FLOAT_T);
+      reg_float[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+      reg_float[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
+      reg_float[tmp_reg].dirty = 1;
+      reg_float[tmp_reg].ref_count += 1;
     }
   } else {  // array
     if (id_node->semantic_value.identifierSemanticValue.symbolTableEntry->scope == 0) {
@@ -968,7 +978,7 @@ void GenAssignment(AST_NODE *assignment_node) {
         fprintf(fp, "\tsw\tx%d,0(x%d)\n", rs, tmp_reg);
         FreeReg(rs, INT_T);
       } else if (id_node->rightSibling->dataType == FLOAT_TYPE) {
-        fprintf(fp, "\tfsw\tft%d,0(x%d)\n", rs, tmp_reg);
+        fprintf(fp, "\tfsw\tf%d,0(x%d)\n", rs, tmp_reg);
         FreeReg(rs, FLOAT_T);
       }
       FreeReg(tmp_reg, INT_T);
@@ -980,7 +990,7 @@ void GenAssignment(AST_NODE *assignment_node) {
         fprintf(fp, "\tsw\tx%d,-%d(x%d)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset, vp);
         FreeReg(rs, INT_T);
       } else if (id_node->dataType == FLOAT_TYPE) {
-        fprintf(fp, "\tfsw\tft%d,-%d(x%d)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset, vp);
+        fprintf(fp, "\tfsw\tf%d,-%d(x%d)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset, vp);
         FreeReg(rs, FLOAT_T);
       }
       FreeReg(vp, INT_T);
@@ -995,7 +1005,6 @@ void GenFunctionDeclaration(AST_NODE *declaration_node) {
   fprintf(fp, "_start_%s:\n", function_id_node->semantic_value.identifierSemanticValue.identifierName);
   GenPrologue(function_id_node->semantic_value.identifierSemanticValue.identifierName);
   GenBlockNode(function_id_node->rightSibling->rightSibling);
-  StoreDirtyRegisters();
   GenEpilogue(function_id_node->semantic_value.identifierSemanticValue.identifierName);
 }
 
