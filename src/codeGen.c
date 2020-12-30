@@ -251,13 +251,19 @@ void StoreDirtyRegistersAll() {
   for (int i = 0; i < 10; i++) {
     int reg_number = int_s_reg_list[i];
     if (reg_int[reg_number].dirty) {
-      StoreStaticVariable(reg_number, INT_S);
+      if (reg_int[reg_number].entry->scope == 0)
+        StoreStaticVariable(reg_number, INT_S);
+      else
+        StoreLocalVariable(reg_number, INT_S);
     }
   }
   for (int i = 0; i < 12; i++) {
     int reg_number = float_s_reg_list[i];
     if (reg_float[reg_number].dirty) {
-      StoreStaticVariable(reg_number, FLOAT_S);
+      if (reg_float[reg_number].entry->scope == 0)
+        StoreStaticVariable(reg_number, FLOAT_S);
+      else
+        StoreLocalVariable(reg_number, FLOAT_S);
     }
   }
 }
@@ -479,7 +485,6 @@ int LoadVariable(AST_NODE *id_node) {
         fprintf(fp, "\tflw\tft%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
       }
     }
-    printf("%d\n", reg);
     if (id_node->dataType == INT_TYPE) {
       reg_int[reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
       reg_int[reg].entry->attribute->attr.typeDescriptor->reg = reg;
