@@ -217,13 +217,17 @@ void FreeReg(int reg_number, RegType reg_type) {
 
 void StoreStaticVariable(int reg_number, RegType reg_type) {
   assert(reg_type == INT_S || reg_type == FLOAT_S);
-  SymbolTableEntry *entry = reg_int[reg_number].entry;
   int tmp_reg = GetReg(INT_T);
-  fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, entry->name);
-  if (entry->attribute->attr.typeDescriptor->properties.dataType == INT_TYPE) {
+  if (reg_type == INT_S) {
+    SymbolTableEntry *entry = reg_int[reg_number].entry;
+    fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, entry->name);
     fprintf(fp, "\tsw\tx%d,0(x%d)\n", reg_number, tmp_reg);
-  } else if (entry->attribute->attr.typeDescriptor->properties.dataType == FLOAT_TYPE) {
+    reg_int[reg_number].dirty = 0;
+  } else if (reg_type == FLOAT_S) {
+    SymbolTableEntry *entry = reg_float[reg_number].entry;
+    fprintf(fp, "\tla\tx%d,_g_%s\n", tmp_reg, entry->name);
     fprintf(fp, "\tfsw\tf%d,0(x%d)\n", reg_number, tmp_reg);
+    reg_float[reg_number].dirty = 0;
   }
   FreeReg(tmp_reg, INT_T);
 }
@@ -232,8 +236,10 @@ void StoreLocalVariable(int reg_number, RegType reg_type) {
   assert(reg_type == INT_S || reg_type == FLOAT_S);
   if (reg_type == INT_S) {
     fprintf(fp, "\tsw\tx%d,-%d(fp)\n", reg_number, reg_int[reg_number].entry->attribute->attr.typeDescriptor->offset);
+    reg_int[reg_number].dirty = 0;
   } else if (reg_type == FLOAT_S) {
     fprintf(fp, "\tfsw\tf%d,-%d(fp)\n", reg_number, reg_float[reg_number].entry->attribute->attr.typeDescriptor->offset);
+    reg_float[reg_number].dirty = 0;
   }
 }
 
@@ -567,12 +573,13 @@ int GenExpr(AST_NODE *expr_node) {
     // gen function call
     if ((expr_node->child->semantic_value.identifierSemanticValue.symbolTableEntry && expr_node->child->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->returnType == INT_TYPE) ||
         !strcmp(expr_node->child->semantic_value.identifierSemanticValue.identifierName, "read")) {
+      // function returns int
       GenFunctionCall(expr_node);
       int reg = GetReg(INT_T);
       fprintf(fp, "\tmv\tx%d,a0\n", reg);
       expr_node->dataType = INT_TYPE;
       return reg;
-    } else {
+    } else {  // function returns float
       GenFunctionCall(expr_node);
       int reg = GetReg(FLOAT_T);
       fprintf(fp, "\tfmv.s\tf%d, fa0\n", reg);
@@ -838,6 +845,7 @@ void PassParameter() {
 }
 
 void GenFunctionCall(AST_NODE *stmt_node) {
+  StoreStaticVariables();
   AST_NODE *function_id_node = stmt_node->child;
   if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "write") == 0) {
     AST_NODE *parameter_node = function_id_node->rightSibling->child;
@@ -871,7 +879,6 @@ void GenFunctionCall(AST_NODE *stmt_node) {
   } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "fread") == 0) {
     fprintf(fp, "\tcall\t_read_float\n");
   } else {
-    StoreStaticVariables();
     // push parameter
     // push space for parameter
     fprintf(fp, "\tjal\t_start_%s\n", function_id_node->semantic_value.identifierSemanticValue.identifierName);
@@ -961,7 +968,7 @@ void GenAssignment(AST_NODE *assignment_node) {
       reg_int[tmp_reg].ref_count += 1;
     } else if (id_node->rightSibling->dataType == FLOAT_TYPE) {
       int tmp_reg = (gg == 0) ? GetReg(FLOAT_S) : gg;
-      fprintf(fp, "\tmv\tf%d,f%d\n", tmp_reg, rs);
+      fprintf(fp, "\tfmv.s\tf%d,f%d\n", tmp_reg, rs);
       FreeReg(rs, FLOAT_T);
       reg_float[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
       reg_float[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
