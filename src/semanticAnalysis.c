@@ -1018,7 +1018,8 @@ void checkReturnStmt(AST_NODE* returnNode) {
     return;
   int iValue;
   float fValue;
-  if (returnType == INT_TYPE && getExprOrConstValue(returnNode->child, &iValue, &fValue) == FLOAT_TYPE) {
+  DATA_TYPE expr_type = getExprOrConstValue(returnNode->child, &iValue, &fValue);
+  if (returnType == INT_TYPE && expr_type == FLOAT_TYPE) {
     printWarningMsg(returnNode, NULL, NULL, FLOAT_TO_INT);
   }
 }
