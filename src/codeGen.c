@@ -329,15 +329,23 @@ int GenExpr(AST_NODE *expr_node) {
     }
     int reg, tmp_reg;
     reg = LoadVariable(expr_node);
-    assert(expr_node->dataType == INT_TYPE || expr_node->dataType == FLOAT_TYPE);
     if (expr_node->dataType == INT_TYPE) {
-      tmp_reg = GetReg(INT_T);
-      fprintf(fp, "\tmv\tx%d,x%d\n", tmp_reg, reg);
+      if (CheckINT_S(reg)) {
+          tmp_reg = GetReg(INT_T);
+          fprintf(fp, "\tmv\tx%d,x%d\n", tmp_reg, reg);
+          return tmp_reg;
+      } else {
+          return reg;
+      }
     } else {
-      tmp_reg = GetReg(FLOAT_T);
-      fprintf(fp, "\tfmv.s\tf%d,f%d\n", tmp_reg, reg);
+      if (CheckFLOAT_S(reg)) {
+        tmp_reg = GetReg(FLOAT_T);
+        fprintf(fp, "\tfmv.s\tf%d,f%d\n", tmp_reg, reg);
+        return tmp_reg;
+      } else {
+          return reg;
+      }
     }
-    return tmp_reg;
   } else if (expr_node->nodeType == STMT_NODE) {
     // gen function call
     if ((expr_node->child->semantic_value.identifierSemanticValue.symbolTableEntry && expr_node->child->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.functionSignature->returnType == INT_TYPE) ||
