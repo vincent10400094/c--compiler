@@ -88,11 +88,10 @@ void PrintRegUsage() {
   puts("================[Register Usage]==================");
   for (int i = 0; i < 10; i++)
     if (reg_int[int_s_reg_list[i]].used)
-      printf("x%d associated with %s, dirty=%s, ref_count=%d\n", int_s_reg_list[i], reg_int[int_s_reg_list[i]].entry->name, reg_int[int_s_reg_list[i]].dirty ? "True" : "Flase", reg_int[int_s_reg_list[i]].ref_count);
+      printf("- x%d associated with %s, dirty=%s, ref_count=%d\n", int_s_reg_list[i], reg_int[int_s_reg_list[i]].entry->name, reg_int[int_s_reg_list[i]].dirty ? "True" : "Flase", reg_int[int_s_reg_list[i]].ref_count);
   for (int i = 0; i < 12; i++)
     if (reg_float[float_s_reg_list[i]].used)
-      printf("f%d associated with %s, dirty=%s, ref_count=%d\n", float_s_reg_list[i], reg_float[float_s_reg_list[i]].entry->name, reg_float[float_s_reg_list[i]].dirty ? "True" : "Flase", reg_float[float_s_reg_list[i]].ref_count);
-  puts("================[End]==================");
+      printf("- f%d associated with %s, dirty=%s, ref_count=%d\n", float_s_reg_list[i], reg_float[float_s_reg_list[i]].entry->name, reg_float[float_s_reg_list[i]].dirty ? "True" : "Flase", reg_float[float_s_reg_list[i]].ref_count);
 }
 
 int GetReg(RegType reg_type) {
@@ -408,7 +407,6 @@ void GenStatement(AST_NODE *stmt_node) {
   if (stmt_node->nodeType == STMT_NODE) {
     switch (stmt_node->semantic_value.stmtSemanticValue.kind) {
       case ASSIGN_STMT: {
-        puts("Gen assign");
         GenAssignment(stmt_node);
         PrintRegUsage();
         break;
@@ -421,7 +419,6 @@ void GenStatement(AST_NODE *stmt_node) {
         break;
       }
       case FUNCTION_CALL_STMT: {
-        puts("Gen functionCall");
         GenFunctionCall(stmt_node);
         break;
       }
@@ -936,6 +933,7 @@ void GenIfStmt(AST_NODE *stmt_node) {
 void GenWhileStmt(AST_NODE *stmt_node) {
   AST_NODE *test_node = stmt_node->child;
   int label_number = max_label_number++;
+  StoreDirtyRegisters();
   fprintf(fp, "_Test%d:\n", label_number);
   int test_reg = GenExpr(test_node);
   fprintf(fp, "\tbeqz\tx%d,_Lexit%d\n", test_reg, label_number);
