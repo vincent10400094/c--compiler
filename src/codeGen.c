@@ -713,7 +713,10 @@ void GenFunctionCall(AST_NODE *stmt_node) {
   } else {
     // push parameter
     // push space for parameter
-    fprintf(fp, "\tjal\t_start_%s\n", function_id_node->semantic_value.identifierSemanticValue.identifierName);
+    int tmp_reg = GetReg(INT_T);
+    FreeReg(tmp_reg, INT_T);
+    fprintf(fp, "\tla\tx%d,_start_%s\n", tmp_reg, function_id_node->semantic_value.identifierSemanticValue.identifierName);
+    fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
     // pop space for parameter
   }
 }

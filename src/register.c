@@ -99,7 +99,7 @@ int GetReg(RegType reg_type) {
       }
       // TODO: all registrs are in-use
       int reg_to_free = GetRegToFree(FLOAT_S);
-      printf("free f%d\n", reg_to_free);
+      //   printf("free f%d\n", reg_to_free);
       FreeReg(reg_to_free, FLOAT_S);
       reg_float[reg_to_free].used = 1;
       return reg_to_free;
