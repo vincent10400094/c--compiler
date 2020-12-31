@@ -4,12 +4,12 @@
 - [ ] float-cmp
 - [ ] floyd
 - [X] globals
-- [ ] if-while
-- [ ] large-global-array
-- [ ] large-local-array
-- [ ] large-local-array-2
+- [X] if-while
+- [X] large-global-array
+- [X] large-local-array
+- [X] large-local-array-2
 - [ ] lis
 - [ ] local-arr
-- [ ] long-long-jump
-- [ ] scope-2
+- [ ] long-long-jump (有空再處理)
+- [ ] scope-2 (line 23, `write(a[0]);` 區域陣列初始值可能不同)
 - [X] sqrt
