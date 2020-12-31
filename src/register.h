@@ -43,4 +43,6 @@ int CheckINT_S(int reg);
 int CheckFLOAT_T(int reg);
 int CheckFLOAT_S(int reg);
 
+void PrintRegUsage();
+
 #endif

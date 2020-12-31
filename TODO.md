@@ -3,7 +3,7 @@
 - [ ] float-arith
 - [ ] float-cmp
 - [ ] floyd
-- [ ] globals
+- [X] globals
 - [ ] if-while
 - [ ] large-global-array
 - [ ] large-local-array
@@ -12,4 +12,4 @@
 - [ ] local-arr
 - [ ] long-long-jump
 - [ ] scope-2
-- [ ] sqrt
+- [X] sqrt
