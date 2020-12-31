@@ -795,19 +795,31 @@ void GenIfStmt(AST_NODE *stmt_node) {
 void GenWhileStmt(AST_NODE *stmt_node) {
   AST_NODE *test_node = stmt_node->child;
   int label_number = max_label_number++;
+  int tmp_reg;
   FreeSavedRegisters();
   fprintf(fp, "_Test%d:\n", label_number);
   int test_reg = GenExpr(test_node);
-  fprintf(fp, "\tbeqz\tx%d,_Lexit%d\n", test_reg, label_number);
+  // fprintf(fp, "\tbeqz\tx%d,_Lexit%d\n", test_reg, label_number);
   assert(test_node->dataType == INT_TYPE || test_node->dataType == FLOAT_TYPE);
   if (test_node->dataType == INT_TYPE) {
     FreeReg(test_reg, INT_T);
   } else {
     FreeReg(test_reg, FLOAT_T);
   }
+  fprintf(fp, "\tbnez\tx%d,_Lstart%d\n", test_reg, label_number);
+  // jump to exit
+  tmp_reg = GetReg(INT_T);
+  FreeReg(tmp_reg, INT_T);
+  fprintf(fp, "\tla\tx%d,_Lexit%d\n", tmp_reg, label_number);
+  fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
+  // if hold, jump here
+  fprintf(fp, "_Lstart%d:\n", label_number);
   GenStatement(test_node->rightSibling);
   FreeSavedRegisters();
-  fprintf(fp, "\tj\t_Test%d\n", label_number);
+  tmp_reg = GetReg(INT_T);
+  FreeReg(tmp_reg, INT_T);
+  fprintf(fp, "\tla\tx%d,_Test%d\n", tmp_reg, label_number);
+  fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
   fprintf(fp, "_Lexit%d:\n", label_number);
 }
 
