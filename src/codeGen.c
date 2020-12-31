@@ -738,12 +738,11 @@ void GenReturnStmt(AST_NODE *return_node) {
       FreeReg(rs, FLOAT_T);
     }
   }
-
-  // PrintRegUsage();
   fprintf(fp, "\tj\t_end_%s\n", function_decl_node->child->rightSibling->semantic_value.identifierSemanticValue.identifierName);
 }
 
 void GenIfStmt(AST_NODE *stmt_node) {
+  FreeSavedRegisters();
   AST_NODE *test_node = stmt_node->child;
   int test_reg = GenExpr(test_node);
   assert(test_node->dataType == INT_TYPE || test_node->dataType == FLOAT_TYPE);
@@ -754,14 +753,38 @@ void GenIfStmt(AST_NODE *stmt_node) {
   }
   int label_number = max_label_number++;
   if (test_node->rightSibling->rightSibling->nodeType != NUL_NODE) {  // if-else statement
-    fprintf(fp, "\tbeqz\tx%d,_Lelse%d\n", test_reg, label_number);
+    int tmp_reg;
+    // fprintf(fp, "\tbeqz\tx%d,_Lelse%d\n", test_reg, label_number);
+    fprintf(fp, "\tbnez\tx%d,_Lstart%d\n", test_reg, label_number);
+    // jump to else
+    tmp_reg = GetReg(INT_T);
+    FreeReg(tmp_reg, INT_T);
+    fprintf(fp, "\tla\tx%d,_Lelse%d\n", tmp_reg, label_number);
+    fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
+    // if holds, jump here
+    fprintf(fp, "_Lstart%d:\n", label_number);
     GenStatement(test_node->rightSibling);
-    fprintf(fp, "\tj\t_Lexit%d\n", label_number);
+    FreeSavedRegisters();
+    // finish if statement, jump exit
+    tmp_reg = GetReg(INT_T);
+    FreeReg(tmp_reg, INT_T);
+    fprintf(fp, "\tla\tx%d,_Lexit%d\n", tmp_reg, label_number);
+    fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
+
     fprintf(fp, "_Lelse%d:\n", label_number);
     GenStatement(test_node->rightSibling->rightSibling);
+    FreeSavedRegisters();
   } else {  // if-only statement
-    fprintf(fp, "\tbeqz\tx%d,_Lexit%d\n", test_reg, label_number);
+    fprintf(fp, "\tbnez\tx%d,_Lstart%d\n", test_reg, label_number);
+    // jump to exit
+    int tmp_reg = GetReg(INT_T);
+    FreeReg(tmp_reg, INT_T);
+    fprintf(fp, "\tla\tx%d,_Lexit%d\n", tmp_reg, label_number);
+    fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
+    // if hold, jump here
+    fprintf(fp, "_Lstart%d:\n", label_number);
     GenStatement(test_node->rightSibling);
+    FreeSavedRegisters();
   }
   fprintf(fp, "_Lexit%d:\n", label_number);
 }
