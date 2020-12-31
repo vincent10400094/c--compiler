@@ -139,6 +139,7 @@ fsw\tft6,176(sp)\n\tfsw\tft7,180(sp)\n",
 
 void GenEpilogue(char *function_name) {
   fprintf(fp, "_end_%s:\n", function_name);
+  StoreStaticVariables();
   fprintf(fp,
           "\tld\tt0,8(sp)\n\tld\tt1,16(sp)\n\tld\tt2,24(sp)\n\tld\tt3,32(sp)\n\tld\tt4,40(sp)\n\tld\tt5,48(sp)\n\t\
 ld\tt6,56(sp)\n\tld\ts2,64(sp)\n\tld\ts3,72(sp)\n\tld\ts4,80(sp)\n\tld\ts5,88(sp)\n\tld\ts6,96(sp)\n\tld\ts7,104(sp)\n\t\
@@ -386,7 +387,7 @@ int GenExpr(AST_NODE *expr_node) {
     }
     int reg, tmp_reg;
     reg = LoadVariable(expr_node);
-    
+
     if (expr_node->dataType == INT_TYPE) {
       if (CheckINT_S(reg)) {
         tmp_reg = GetReg(INT_T);
@@ -874,7 +875,6 @@ void GenFunctionDeclaration(AST_NODE *declaration_node) {
   fprintf(fp, "_start_%s:\n", function_id_node->semantic_value.identifierSemanticValue.identifierName);
   GenPrologue(function_id_node->semantic_value.identifierSemanticValue.identifierName);
   GenBlockNode(function_id_node->rightSibling->rightSibling);
-  StoreStaticVariables();
   GenEpilogue(function_id_node->semantic_value.identifierSemanticValue.identifierName);
 }
 
