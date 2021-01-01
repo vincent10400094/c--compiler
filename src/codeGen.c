@@ -669,7 +669,9 @@ void PassParameter() {
 }
 
 void GenFunctionCall(AST_NODE *stmt_node) {
+  int used_i[7], used_f[12];
   FreeSavedRegisters();
+  SaveTempRegisters(used_i, used_f);
   AST_NODE *function_id_node = stmt_node->child;
   if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "write") == 0) {
     AST_NODE *parameter_node = function_id_node->rightSibling->child;
@@ -711,6 +713,7 @@ void GenFunctionCall(AST_NODE *stmt_node) {
     fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
     // pop space for parameter
   }
+  RestoreTempRegisters(used_i, used_f);
 }
 
 void GenReturnStmt(AST_NODE *return_node) {

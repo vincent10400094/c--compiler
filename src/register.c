@@ -261,3 +261,37 @@ void FreeSavedRegisters() {
     }
   }
 }
+
+void SaveTempRegisters(int *used_i, int *used_f) {
+  for (int i = 0; i < 7; i++) {
+    if (reg_int[int_t_reg_list[i]].used) {
+      AR_offset += 8;
+      used_i[i] = AR_offset;
+      fprintf(fp, "\tsw\tx%d,-%d(fp)\n", int_t_reg_list[i], AR_offset);
+    } else {
+      used_i[i] = -1;
+    }
+  }
+  for (int i = 0; i < 12; i++) {
+    if (reg_float[float_t_reg_list[i]].used) {
+      AR_offset += 8;
+      used_f[i] = AR_offset;
+      fprintf(fp, "\tfsw\tf%d,-%d(fp)\n", float_t_reg_list[i], AR_offset);
+    } else {
+      used_f[i] = -1;
+    }
+  }
+}
+
+void RestoreTempRegisters(int *used_i, int *used_f) {
+  for (int i = 0; i < 7; i++) {
+    if (used_i[i] != -1) {
+      fprintf(fp, "\tlw\tx%d,-%d(fp)\n", int_t_reg_list[i], used_i[i]);
+    }
+  }
+  for (int i = 0; i < 12; i++) {
+    if (used_f[i] != -1) {
+      fprintf(fp, "\tflw\tf%d,-%d(fp)\n", float_t_reg_list[i], used_f[i]);
+    }
+  }
+}

@@ -20,6 +20,7 @@ typedef enum RegType {
 } RegType;
 
 extern FILE *fp;
+extern int AR_offset;
 
 extern Register reg_int[32];
 extern Register reg_float[32];
@@ -37,6 +38,8 @@ void StoreStaticVariable(int reg_number, RegType reg_type);
 void StoreLocalVariable(int reg_number, RegType reg_type);
 void StoreStaticVariables();
 void FreeSavedRegisters();
+void SaveTempRegisters(int *used_i, int *used_f);
+void RestoreTempRegisters(int *used_i, int *used_f);
 
 int CheckINT_T(int reg);
 int CheckINT_S(int reg);
