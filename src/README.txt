@@ -1,47 +1,9 @@
-Additional errors we check: (We have also done bonus errors specified in spec)
+* Extra credits:
 
-1. SYMBOL_REDECLARE_DIFFERENT_KIND:
+1) Before each function call, dirty S-registers (hold modified data) will be stored to memory (with .offset or .reg attribute recorded in symbol table), and when the function returns, the caller will not immediately reload all S-registers, instead it loads them when needed. For T-registers, we implement the caller-save routine, that is, the caller will save all registers in-use to AR before the function call and restore all of them when the function returns. The number of register storing/saving is much less than the one from the sample output.s.
 
-    example:
-        typedef int a;
-        int a;
+2) We use register tables to track the usage of registers (register.h, register.c), keeping as much variables in registers as possible. Writes of S-registers occur when there's no spare S-register possible or the program encounters jump instruction (e.g. function call or control statement).
 
-    error: redefinition of 'a' as different kind of symbol
+* Some optimizations we implement:
 
-2. VOID_VARIABLE:
-
-    example:
-        typedef void VOID;
-        VOID a;
-    error: variable has incomplete type 'VOID' (aka 'void')
-
-3. IS_TYPE_NOT_VARIABLE:
-
-    example:
-        typedef int a;
-        int b = a + 3;
-
-    error: unexpected type name 'a': expected expression
-
-4. RETURN_ARRAY:
-
-    example:
-        typedef int A[2];
-        A function() {}
-    error: function cannot return array type 'A' (aka 'int [2]')
-
-5. ARRAY_SIZE_NOT_INT:
-
-    example:
-        int A[1.1]; // or
-        int A[5 + 3 - 1.1];
-    
-    error: size of array has non-integer type 'float'
-
-6. NOT_FUNCTION_NAME
-   
-    example:
-        int a;
-        a();
-    error: called object type 'int' is not a function or function pointer
-   
+1) Constant folding: Expressions with constants will be evaluated during compile-time.
