@@ -371,6 +371,26 @@ int GenExpr(AST_NODE *expr_node) {
       fconst_label_number++;
       return reg;
     }
+  } else if (expr_node->nodeType == EXPR_NODE && expr_node->semantic_value.exprSemanticValue.isConstEval) {
+    assert(expr_node->dataType == INT_TYPE || expr_node->dataType == FLOAT_TYPE);
+    if (expr_node->dataType == INT_TYPE) {
+      int reg = GetReg(INT_T);
+      fprintf(fp, "\tli\tx%d,%d\n", reg, expr_node->semantic_value.exprSemanticValue.constEvalValue.iValue);
+      return reg;
+    } else if (expr_node->dataType == FLOAT_TYPE) {
+      fprintf(fp, ".data\n");
+      float fconst = expr_node->semantic_value.exprSemanticValue.constEvalValue.fValue;
+      int float_to_int = *(int *)&fconst;
+      fprintf(fp, ".FC%d: .word %u\n", fconst_label_number, float_to_int);
+      fprintf(fp, ".text\n");
+      int tmp_reg = GetReg(INT_T);
+      fprintf(fp, "\tla\tx%d, .FC%d\n", tmp_reg, fconst_label_number);
+      int reg = GetReg(FLOAT_T);
+      fprintf(fp, "\tflw\tf%d,0(x%d)\n", reg, tmp_reg);
+      FreeReg(tmp_reg, INT_T);
+      fconst_label_number++;
+      return reg;
+    }
   } else if (expr_node->nodeType == IDENTIFIER_NODE) {
     if (expr_node->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
       expr_node->dataType = expr_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->properties.dataType;
