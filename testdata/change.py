@@ -19,7 +19,7 @@ prev = "#include <stdio.h>\n#include <stdbool.h>\n#define printf_dec_format(x) _
 
 print(prev)
 filename = sys.argv[1]
-with open(filename+".c", "r") as f:
+with open(filename+'.c', "r") as f:
     lines = f.readlines()
 
 for line in lines:

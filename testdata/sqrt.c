@@ -2,7 +2,7 @@ float n, l, r, mid;
 int iter;
 
 float SquareRoot() {
-  l = 0;
+  l = 0.0;
   r = n; 
   iter = 0;
   while (r - l > 0.0001 && iter < 100) {
@@ -15,7 +15,7 @@ float SquareRoot() {
 }
 
 int MAIN() {
-  n = 1;
+  n = 1.0;
   while (n <= 10.0) {
     write(SquareRoot());
     write("\n");
