@@ -129,11 +129,7 @@ void GenSymbolDeclaration(AST_NODE *declaration_list_node) {
 void GenPrologue(char *function_name) {
   fprintf(fp,
           "\tsd\tra,0(sp)\n\tsd\tfp,-8(sp)\n\tadd fp,sp,-8\n\tadd sp,sp,-16\n\tla\tra,_frameSize_%s\n\tlw\tra,0(ra)\n\t\
-sub\tsp,sp,ra\n\tsd\tt0,8(sp)\n\tsd\tt1,16(sp)\n\tsd\tt2,24(sp)\n\tsd\tt3,32(sp)\n\tsd\tt4,40(sp)\n\tsd\tt5,48(sp)\n\t\
-sd\tt6,56(sp)\n\tsd\ts2,64(sp)\n\tsd\ts3,72(sp)\n\tsd\ts4,80(sp)\n\tsd\ts5,88(sp)\n\tsd\ts6,96(sp)\n\tsd\ts7,104(sp)\n\t\
-sd\ts8,112(sp)\n\tsd\ts9,120(sp)\n\tsd\ts10,128(sp)\n\tsd\ts11,136(sp)\n\tsd\tfp,144(sp)\n\t\
-fsw\tft0,152(sp)\n\tfsw\tft1,156(sp)\n\tfsw\tft2,160(sp)\n\tfsw\tft3,164(sp)\n\tfsw\tft4,168(sp)\n\tfsw\tft5,172(sp)\n\t\
-fsw\tft6,176(sp)\n\tfsw\tft7,180(sp)\n",
+sub\tsp,sp,ra\n",
           function_name);
 }
 
@@ -141,12 +137,8 @@ void GenEpilogue(char *function_name) {
   fprintf(fp, "_end_%s:\n", function_name);
   StoreStaticVariables();
   fprintf(fp,
-          "\tld\tt0,8(sp)\n\tld\tt1,16(sp)\n\tld\tt2,24(sp)\n\tld\tt3,32(sp)\n\tld\tt4,40(sp)\n\tld\tt5,48(sp)\n\t\
-ld\tt6,56(sp)\n\tld\ts2,64(sp)\n\tld\ts3,72(sp)\n\tld\ts4,80(sp)\n\tld\ts5,88(sp)\n\tld\ts6,96(sp)\n\tld\ts7,104(sp)\n\t\
-ld\ts8,112(sp)\n\tld\ts9,120(sp)\n\tld\ts10,128(sp)\n\tld\ts11,136(sp)\n\tld\tfp,144(sp)\n\t\
-flw\tft0,152(sp)\n\tflw\tft1,156(sp)\n\tflw\tft2,160(sp)\n\tflw\tft3,164(sp)\n\tflw\tft4,168(sp)\n\tflw\tft5,172(sp)\n\t\
-flw\tft6,176(sp)\n\tflw\tft7,180(sp)\n\tld\tra,8(fp)\n\tmv\tsp,fp\n\tadd sp,sp,8\n\tld\tfp,0(fp)\n\tjr\tra\n.data\n");
-  fprintf(fp, "_frameSize_%s: .word %d\n", function_name, 180 + AR_offset);
+          "\tld\tra,8(fp)\n\tmv\tsp,fp\n\tadd sp,sp,8\n\tld\tfp,0(fp)\n\tjr\tra\n.data\n");
+  fprintf(fp, "_frameSize_%s: .word %d\n", function_name, 0 + AR_offset);
   AR_offset = 0;
 }
 
@@ -815,19 +807,31 @@ void GenIfStmt(AST_NODE *stmt_node) {
 void GenWhileStmt(AST_NODE *stmt_node) {
   AST_NODE *test_node = stmt_node->child;
   int label_number = max_label_number++;
+  int tmp_reg;
   FreeSavedRegisters();
   fprintf(fp, "_Test%d:\n", label_number);
   int test_reg = GenExpr(test_node);
-  fprintf(fp, "\tbeqz\tx%d,_Lexit%d\n", test_reg, label_number);
+  // fprintf(fp, "\tbeqz\tx%d,_Lexit%d\n", test_reg, label_number);
   assert(test_node->dataType == INT_TYPE || test_node->dataType == FLOAT_TYPE);
   if (test_node->dataType == INT_TYPE) {
     FreeReg(test_reg, INT_T);
   } else {
     FreeReg(test_reg, FLOAT_T);
   }
+  fprintf(fp, "\tbnez\tx%d,_Lstart%d\n", test_reg, label_number);
+  // jump to exit
+  tmp_reg = GetReg(INT_T);
+  FreeReg(tmp_reg, INT_T);
+  fprintf(fp, "\tla\tx%d,_Lexit%d\n", tmp_reg, label_number);
+  fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
+  // if hold, jump here
+  fprintf(fp, "_Lstart%d:\n", label_number);
   GenStatement(test_node->rightSibling);
   FreeSavedRegisters();
-  fprintf(fp, "\tj\t_Test%d\n", label_number);
+  tmp_reg = GetReg(INT_T);
+  FreeReg(tmp_reg, INT_T);
+  fprintf(fp, "\tla\tx%d,_Test%d\n", tmp_reg, label_number);
+  fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
   fprintf(fp, "_Lexit%d:\n", label_number);
 }
 
