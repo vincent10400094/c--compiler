@@ -6,11 +6,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+
 #include "header.h"
 #include "codeGen.h"
+#include "symbolTable.h"
+
 int linenumber = 1;
 AST_NODE *prog;
 char *srcPath;
+
+int yylex();
+int yyerror(const char *s);
 
 extern int g_anyErrorOccur;
 
