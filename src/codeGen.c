@@ -35,6 +35,7 @@ void PassParameter();
 void GenFunctionCall(AST_NODE *stmt_node);
 void GenIfStmt(AST_NODE *stmt_node);
 void GenWhileStmt(AST_NODE *stmt_node);
+void GenForStmt(AST_NODE *stmt_node);
 void symbolTableAdd(char *symbol_name);
 void GenHead(AST_NODE *id_name_node);
 void CodeGen(AST_NODE *root, FILE *fp);
@@ -204,6 +205,7 @@ void GenStatement(AST_NODE *stmt_node) {
         break;
       }
       case FOR_STMT: {
+        GenForStmt(stmt_node);
         break;
       }
       case FUNCTION_CALL_STMT: {
@@ -836,6 +838,60 @@ void GenIfStmt(AST_NODE *stmt_node) {
     GenStatement(test_node->rightSibling);
     FreeSavedRegisters();
   }
+  fprintf(fp, "_Lexit%d:\n", label_number);
+}
+
+void GenForStmt(AST_NODE *stmt_node) {
+  AST_NODE *node = stmt_node->child;
+  int label_number = max_label_number++;
+  int tmp_reg;
+  if (node->nodeType != NUL_NODE) {
+    AST_NODE *assign_node = node->child;
+    while (assign_node) {
+      GenAssignment(assign_node);
+      assign_node = assign_node->rightSibling;
+    }
+  }
+  FreeSavedRegisters();
+  node = node->rightSibling;
+  if (node->nodeType != NUL_NODE) {
+    fprintf(fp, "_Test%d:\n", label_number);
+    AST_NODE *test_node = node->child;
+    while (test_node->rightSibling != NULL)
+      test_node = test_node->rightSibling;
+    int test_reg = GenExpr(test_node);
+    assert(test_node->dataType == INT_TYPE || test_node->dataType == FLOAT_TYPE);
+    if (test_node->dataType == INT_TYPE) {
+      FreeReg(test_reg, INT_T);
+    } else {
+      FreeReg(test_reg, FLOAT_T);
+    }
+    fprintf(fp, "\tbnez\tx%d,_Lstart%d\n", test_reg, label_number);
+    // jump to exit
+    tmp_reg = GetReg(INT_T);
+    FreeReg(tmp_reg, INT_T);
+    fprintf(fp, "\tla\tx%d,_Lexit%d\n", tmp_reg, label_number);
+    fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
+  }
+  // if hold, jump here
+  fprintf(fp, "_Lstart%d:\n", label_number);
+  node = node->rightSibling;
+  // if block if not empty block
+  if (node->rightSibling->nodeType != NUL_NODE) {
+    GenStatement(node->rightSibling);
+    if (node->nodeType != NUL_NODE) {
+      AST_NODE *assign_node = node->child;
+      while (assign_node) {
+        GenAssignment(assign_node);
+        assign_node = assign_node->rightSibling;
+      }
+    }
+    FreeSavedRegisters();
+  }
+  tmp_reg = GetReg(INT_T);
+  fprintf(fp, "\tla\tx%d,_Test%d\n", tmp_reg, label_number);
+  fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
+  FreeReg(tmp_reg, INT_T);
   fprintf(fp, "_Lexit%d:\n", label_number);
 }
 
