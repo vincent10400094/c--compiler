@@ -90,15 +90,47 @@ void GenSymbolDeclaration(AST_NODE *declaration_list_node) {
                 AST_NODE *init_node = id_node->child;
                 int rs = GenExpr(id_node->child);
                 assert(init_node->dataType != NONE_TYPE);
+                int tmp_reg = id_node->dataType == INT_TYPE ? GetReg(INT_S) : GetReg(FLOAT_S);
                 if (init_node->dataType == INT_TYPE) {
-                  AllocateSymbol(id_node->semantic_value.identifierSemanticValue.symbolTableEntry, 4);
-                  fprintf(fp, "\tsw\tx%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
                   FreeReg(rs, INT_T);
+                  if (id_node->dataType == FLOAT_TYPE) {  // int to float
+                    fprintf(fp, "\tfcvt.s.w\tf%d,x%d\n", tmp_reg, rs);
+                    reg_float[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+                    reg_float[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
+                    reg_float[tmp_reg].dirty = 1;
+                    reg_float[tmp_reg].ref_count += 1;
+                  } else if (id_node->dataType == INT_TYPE) {  // int to int
+                    fprintf(fp, "\tmv\tx%d,x%d\n", tmp_reg, rs);
+                    reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+                    reg_int[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
+                    reg_int[tmp_reg].dirty = 1;
+                    reg_int[tmp_reg].ref_count += 1;
+                  }
                 } else if (init_node->dataType == FLOAT_TYPE) {
-                  AllocateSymbol(id_node->semantic_value.identifierSemanticValue.symbolTableEntry, 4);
-                  fprintf(fp, "\tfsw\tf%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
                   FreeReg(rs, FLOAT_T);
+                  if (id_node->dataType == FLOAT_TYPE) {  // float to float
+                    fprintf(fp, "\tfmv.s\tf%d,f%d\n", tmp_reg, rs);
+                    reg_float[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+                    reg_float[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
+                    reg_float[tmp_reg].dirty = 1;
+                    reg_float[tmp_reg].ref_count += 1;
+                  } else if (id_node->dataType == INT_TYPE) {  // float to int
+                    // reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+                    // reg_int[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
+                    // reg_int[tmp_reg].dirty = 1;
+                    // reg_int[tmp_reg].ref_count += 1;
+                  }
                 }
+
+                // if (init_node->dataType == INT_TYPE) {
+                //   AllocateSymbol(id_node->semantic_value.identifierSemanticValue.symbolTableEntry, 4);
+                //   fprintf(fp, "\tsw\tx%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
+                //   FreeReg(rs, INT_T);
+                // } else if (init_node->dataType == FLOAT_TYPE) {
+                //   AllocateSymbol(id_node->semantic_value.identifierSemanticValue.symbolTableEntry, 4);
+                //   fprintf(fp, "\tfsw\tf%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
+                //   FreeReg(rs, FLOAT_T);
+                // }
               }
             }
             break;
@@ -245,7 +277,7 @@ int LoadVariable(AST_NODE *id_node) {
       }
     } else {  // local variable
       if (id_node->dataType == INT_TYPE) {
-        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+        if (entry->attribute->attr.typeDescriptor->offset >= 2048) {
           reg = GetReg(INT_S);
           fprintf(fp, ".data\n");
           fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
@@ -262,7 +294,7 @@ int LoadVariable(AST_NODE *id_node) {
           fprintf(fp, "\tlw\tx%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
         }
       } else if (id_node->dataType == FLOAT_TYPE) {
-        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+        if (entry->attribute->attr.typeDescriptor->offset >= 2048) {
           reg = GetReg(FLOAT_S);
           fprintf(fp, ".data\n");
           fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
@@ -308,7 +340,7 @@ int LoadVariable(AST_NODE *id_node) {
       int vp = GenVp(id_node);
       fprintf(fp, "\tadd\tx%d,fp,x%d\n", vp, vp);
       if (id_node->dataType == INT_TYPE) {
-        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+        if (entry->attribute->attr.typeDescriptor->offset >= 2048) {
           reg = GetReg(INT_T);
           fprintf(fp, ".data\n");
           fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
@@ -325,7 +357,7 @@ int LoadVariable(AST_NODE *id_node) {
           fprintf(fp, "\tlw\tx%d,-%d(x%d)\n", reg, entry->attribute->attr.typeDescriptor->offset, vp);
         }
       } else if (id_node->dataType == FLOAT_TYPE) {
-        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+        if (entry->attribute->attr.typeDescriptor->offset >= 2048) {
           reg = GetReg(FLOAT_T);
           fprintf(fp, ".data\n");
           fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
@@ -896,7 +928,7 @@ void GenAssignment(AST_NODE *assignment_node) {
       int vp = GenVp(id_node);
       fprintf(fp, "\tadd\tx%d,fp,x%d\n", vp, vp);
       if (id_node->dataType == INT_TYPE) {
-        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+        if (entry->attribute->attr.typeDescriptor->offset >= 2048) {
           fprintf(fp, ".data\n");
           fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
           fprintf(fp, ".text\n");
@@ -913,7 +945,7 @@ void GenAssignment(AST_NODE *assignment_node) {
           FreeReg(rs, INT_T);
         }
       } else if (id_node->dataType == FLOAT_TYPE) {
-        if (entry->attribute->attr.typeDescriptor->offset >= 4096) {
+        if (entry->attribute->attr.typeDescriptor->offset >= 2048) {
           fprintf(fp, ".data\n");
           fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, entry->attribute->attr.typeDescriptor->offset);
           fprintf(fp, ".text\n");

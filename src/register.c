@@ -196,7 +196,7 @@ void StoreStaticVariable(int reg_number, RegType reg_type) {
 void StoreLocalVariable(int reg_number, RegType reg_type) {
   assert(reg_type == INT_S || reg_type == FLOAT_S);
   if (reg_type == INT_S) {
-    if (reg_int[reg_number].entry->attribute->attr.typeDescriptor->offset >= 4096) {
+    if (reg_int[reg_number].entry->attribute->attr.typeDescriptor->offset >= 2048) {
       fprintf(fp, ".data\n");
       fprintf(fp, ".ICS%d: .word %d\n", iconst_label_number_s, reg_int[reg_number].entry->attribute->attr.typeDescriptor->offset);
       fprintf(fp, ".text\n");
@@ -212,7 +212,7 @@ void StoreLocalVariable(int reg_number, RegType reg_type) {
     }
     reg_int[reg_number].dirty = 0;
   } else if (reg_type == FLOAT_S) {
-    if (reg_float[reg_number].entry->attribute->attr.typeDescriptor->offset >= 4096) {
+    if (reg_float[reg_number].entry->attribute->attr.typeDescriptor->offset >= 2048) {
       fprintf(fp, ".data\n");
       fprintf(fp, ".ICS%d: .word %d\n", iconst_label_number_s, reg_float[reg_number].entry->attribute->attr.typeDescriptor->offset);
       fprintf(fp, ".text\n");
