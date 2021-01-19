@@ -18,6 +18,8 @@ char *srcPath;
 int yylex();
 int yyerror(const char *s);
 
+void printGV(AST_NODE *root, char *fileName);
+
 extern int g_anyErrorOccur;
 
 static inline AST_NODE* makeSibling(AST_NODE *a, AST_NODE *b)

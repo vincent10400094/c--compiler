@@ -739,7 +739,7 @@ void processExprNode(AST_NODE* exprNode) {
       isConst2 = 1;
       if (child2->dataType == INT_TYPE)
         i2 = child2->semantic_value.const1->const_u.intval;
-      else if (child1->dataType == FLOAT_TYPE)
+      else if (child2->dataType == FLOAT_TYPE)
         f2 = child2->semantic_value.const1->const_u.fval;
     } else if (child2->nodeType == IDENTIFIER_NODE) {
       processVariableRValue(child2);
@@ -753,7 +753,7 @@ void processExprNode(AST_NODE* exprNode) {
       isConst2 = child2->semantic_value.exprSemanticValue.isConstEval;
       if (child2->dataType == INT_TYPE)
         i2 = child2->semantic_value.exprSemanticValue.constEvalValue.iValue;
-      else if (child1->dataType == FLOAT_TYPE)
+      else if (child2->dataType == FLOAT_TYPE)
         f2 = child2->semantic_value.exprSemanticValue.constEvalValue.fValue;
     }
 
@@ -767,7 +767,7 @@ void processExprNode(AST_NODE* exprNode) {
           if (exprNode->dataType == FLOAT_TYPE)
             semanticValue->constEvalValue.fValue =
                 (child1->dataType == INT_TYPE ? i1 : f1) + (child2->dataType == INT_TYPE ? i2 : f2);
-          else if (child1->dataType == INT_TYPE)
+          else if (exprNode->dataType == INT_TYPE)
             semanticValue->constEvalValue.iValue =
                 (child1->dataType == INT_TYPE ? i1 : f1) + (child2->dataType == INT_TYPE ? i2 : f2);
           break;
@@ -777,7 +777,7 @@ void processExprNode(AST_NODE* exprNode) {
           if (exprNode->dataType == FLOAT_TYPE)
             semanticValue->constEvalValue.fValue =
                 (child1->dataType == INT_TYPE ? i1 : f1) - (child2->dataType == INT_TYPE ? i2 : f2);
-          else if (child1->dataType == INT_TYPE)
+          else if (exprNode->dataType == INT_TYPE)
             semanticValue->constEvalValue.iValue =
                 (child1->dataType == INT_TYPE ? i1 : f1) - (child2->dataType == INT_TYPE ? i2 : f2);
           break;
@@ -787,7 +787,7 @@ void processExprNode(AST_NODE* exprNode) {
           if (exprNode->dataType == FLOAT_TYPE)
             semanticValue->constEvalValue.fValue =
                 (child1->dataType == INT_TYPE ? i1 : f1) * (child2->dataType == INT_TYPE ? i2 : f2);
-          else if (child1->dataType == INT_TYPE)
+          else if (exprNode->dataType == INT_TYPE)
             semanticValue->constEvalValue.iValue =
                 (child1->dataType == INT_TYPE ? i1 : f1) * (child2->dataType == INT_TYPE ? i2 : f2);
           break;
@@ -797,7 +797,7 @@ void processExprNode(AST_NODE* exprNode) {
           if (exprNode->dataType == FLOAT_TYPE)
             semanticValue->constEvalValue.fValue =
                 (child1->dataType == INT_TYPE ? i1 : f1) / (child2->dataType == INT_TYPE ? i2 : f2);
-          else if (child1->dataType == INT_TYPE)
+          else if (exprNode->dataType == INT_TYPE)
             semanticValue->constEvalValue.iValue =
                 (child1->dataType == INT_TYPE ? i1 : f1) / (child2->dataType == INT_TYPE ? i2 : f2);
           break;

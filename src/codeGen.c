@@ -430,10 +430,8 @@ int GenExpr(AST_NODE *expr_node) {
       fprintf(fp, "\tli\tx%d,%d\n", reg, expr_node->semantic_value.exprSemanticValue.constEvalValue.iValue);
       return reg;
     } else if (expr_node->dataType == FLOAT_TYPE) {
-      puts("floattt");
       fprintf(fp, ".data\n");
       float fconst = expr_node->semantic_value.exprSemanticValue.constEvalValue.fValue;
-      printf("%f\n", fconst);
       int float_to_int = *(int *)&fconst;
       fprintf(fp, ".FC%d: .word %u\n", fconst_label_number, float_to_int);
       fprintf(fp, ".text\n");
