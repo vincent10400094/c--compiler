@@ -41,6 +41,8 @@ void GenHead(AST_NODE *id_name_node);
 void CodeGen(AST_NODE *root, FILE *fp);
 int GenVp(AST_NODE *id_node);
 int LoadVariable(AST_NODE *id_node);
+int FloatToInt(int reg_number);
+int IntToFloat(int reg_number);
 
 int GetOffset() {
   return AR_offset;
@@ -48,6 +50,22 @@ int GetOffset() {
 
 void ResetOffset() {
   AR_offset = 0;
+}
+
+int FloatToInt(int reg_number) {
+  assert(CheckFLOAT_T(reg_number));
+  int tmp_reg = GetReg(INT_T);
+  fprintf(fp, "\tfcvt.w.s\tx%d,f%d\n", tmp_reg, reg_number);
+  FreeReg(reg_number, FLOAT_T);
+  return tmp_reg;
+}
+
+int IntToFloat(int reg_number) {
+  assert(CheckINT_T(reg_number));
+  int tmp_reg = GetReg(FLOAT_T);
+  fprintf(fp, "\tfcvt.s.w\tf%d,x%d\n", tmp_reg, reg_number);
+  FreeReg(reg_number, INT_T);
+  return tmp_reg;
 }
 
 void AllocateSymbol(SymbolTableEntry *entry, int size) {
@@ -116,13 +134,13 @@ void GenSymbolDeclaration(AST_NODE *declaration_list_node) {
                     reg_float[tmp_reg].dirty = 1;
                     reg_float[tmp_reg].ref_count += 1;
                   } else if (id_node->dataType == INT_TYPE) {  // float to int
-                    // reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
-                    // reg_int[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
-                    // reg_int[tmp_reg].dirty = 1;
-                    // reg_int[tmp_reg].ref_count += 1;
+                    fprintf(fp, "\tfcvt.w.s\tx%d,f%d\n", tmp_reg, rs);
+                    reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+                    reg_int[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
+                    reg_int[tmp_reg].dirty = 1;
+                    reg_int[tmp_reg].ref_count += 1;
                   }
                 }
-
                 // if (init_node->dataType == INT_TYPE) {
                 //   AllocateSymbol(id_node->semantic_value.identifierSemanticValue.symbolTableEntry, 4);
                 //   fprintf(fp, "\tsw\tx%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
@@ -412,8 +430,10 @@ int GenExpr(AST_NODE *expr_node) {
       fprintf(fp, "\tli\tx%d,%d\n", reg, expr_node->semantic_value.exprSemanticValue.constEvalValue.iValue);
       return reg;
     } else if (expr_node->dataType == FLOAT_TYPE) {
+      puts("floattt");
       fprintf(fp, ".data\n");
       float fconst = expr_node->semantic_value.exprSemanticValue.constEvalValue.fValue;
+      printf("%f\n", fconst);
       int float_to_int = *(int *)&fconst;
       fprintf(fp, ".FC%d: .word %u\n", fconst_label_number, float_to_int);
       fprintf(fp, ".text\n");
@@ -552,9 +572,17 @@ int GenExpr(AST_NODE *expr_node) {
         }
       }
       return rd;
-    } else if (expr_node->child->dataType == FLOAT_TYPE && expr_node->child->rightSibling->dataType == FLOAT_TYPE) {
-      FreeReg(rs1, FLOAT_T);
-      FreeReg(rs2, FLOAT_T);
+    } else if (expr_node->child->dataType == FLOAT_TYPE || expr_node->child->rightSibling->dataType == FLOAT_TYPE) {
+      assert(expr_node->child->dataType == FLOAT_TYPE || expr_node->child->dataType == INT_TYPE);
+      if (expr_node->child->dataType == FLOAT_TYPE)
+        FreeReg(rs1, FLOAT_T);
+      else
+        rs1 = IntToFloat(rs1);
+      assert(expr_node->child->rightSibling->dataType == FLOAT_TYPE || expr_node->child->rightSibling->dataType == INT_TYPE);
+      if (expr_node->child->rightSibling->dataType == FLOAT_TYPE)
+        FreeReg(rs2, FLOAT_T);
+      else
+        rs2 = IntToFloat(rs2);
       int rd;
       switch (semanticValue->op.binaryOp) {
         case BINARY_OP_ADD: {
@@ -959,10 +987,11 @@ void GenAssignment(AST_NODE *assignment_node) {
         reg_float[tmp_reg].dirty = 1;
         reg_float[tmp_reg].ref_count += 1;
       } else if (id_node->dataType == INT_TYPE) {  // float to int
-        // reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
-        // reg_int[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
-        // reg_int[tmp_reg].dirty = 1;
-        // reg_int[tmp_reg].ref_count += 1;
+        fprintf(fp, "\tfcvt.w.s\tx%d,f%d\n", tmp_reg, rs);
+        reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+        reg_int[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
+        reg_int[tmp_reg].dirty = 1;
+        reg_int[tmp_reg].ref_count += 1;
       }
     }
   } else {  // array
