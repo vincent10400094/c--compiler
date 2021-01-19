@@ -31,7 +31,7 @@ void GenSymbolReference();
 int GenExpr(AST_NODE *expr_node);
 void GenAssignment(AST_NODE *assignment_node);
 void GenReturnStmt(AST_NODE *return_node);
-void PassParameter();
+void PassParameter(AST_NODE *functuon_node, FILE *fp);
 void GenFunctionCall(AST_NODE *stmt_node);
 void GenIfStmt(AST_NODE *stmt_node);
 void GenWhileStmt(AST_NODE *stmt_node);
@@ -87,6 +87,7 @@ void GenSymbolDeclaration(AST_NODE *declaration_list_node) {
                   fprintf(fp, "_g_%s: .float %d\n", id_node->semantic_value.identifierSemanticValue.identifierName, float_to_int);
                 }
               } else {
+                AllocateSymbol(id_node->semantic_value.identifierSemanticValue.symbolTableEntry, 4);
                 AST_NODE *init_node = id_node->child;
                 int rs = GenExpr(id_node->child);
                 assert(init_node->dataType != NONE_TYPE);
@@ -168,10 +169,11 @@ sub\tsp,sp,ra\n",
 void GenEpilogue(char *function_name) {
   fprintf(fp, "_end_%s:\n", function_name);
   StoreStaticVariables();
+  FreeSavedRegisters();
   fprintf(fp,
           "\tld\tra,8(fp)\n\tmv\tsp,fp\n\tadd sp,sp,8\n\tld\tfp,0(fp)\n\tjr\tra\n.data\n");
   fprintf(fp, "_frameSize_%s: .word %d\n", function_name, 0 + AR_offset);
-  AR_offset = 0;
+  ResetOffset();
 }
 
 void GenBlockNode(AST_NODE *block_node) {
@@ -291,7 +293,7 @@ int LoadVariable(AST_NODE *id_node) {
           iconst_label_number++;
         } else {
           reg = GetReg(INT_S);
-          fprintf(fp, "\tlw\tx%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
+          fprintf(fp, "\tlw\tx%d,%d(fp)\n", reg, -entry->attribute->attr.typeDescriptor->offset);
         }
       } else if (id_node->dataType == FLOAT_TYPE) {
         if (entry->attribute->attr.typeDescriptor->offset >= 2048) {
@@ -308,7 +310,7 @@ int LoadVariable(AST_NODE *id_node) {
           iconst_label_number++;
         } else {
           reg = GetReg(FLOAT_S);
-          fprintf(fp, "\tflw\tf%d,-%d(fp)\n", reg, entry->attribute->attr.typeDescriptor->offset);
+          fprintf(fp, "\tflw\tf%d,%d(fp)\n", reg, -entry->attribute->attr.typeDescriptor->offset);
         }
       }
     }
@@ -717,15 +719,66 @@ int GenExpr(AST_NODE *expr_node) {
   }
 }
 
-void PassParameter() {
+void PassParameter(AST_NODE *function_id_node, FILE *fp) {
+  SymbolTableEntry *entry = function_id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+  Parameter *parameter = entry->attribute->attr.functionSignature->parameterList;
+  
+  AST_NODE *actual_parameter = function_id_node->rightSibling->child;
+  while (parameter != NULL) {
+    int rt = GenExpr(actual_parameter);
+    assert(actual_parameter->dataType != NONE_TYPE);
+    if (parameter->type->kind == SCALAR_TYPE_DESCRIPTOR) {
+      AR_offset += 4;
+      if (actual_parameter->dataType == INT_TYPE) {
+        if (AR_offset >= 2048) {
+          fprintf(fp, ".data\n");
+          fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, AR_offset);
+          fprintf(fp, ".text\n");
+          int tmp_reg = GetReg(INT_T);
+          fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
+          fprintf(fp, "\tlw\tx%d,0(x%d)\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tsub\tx%d,fp,x%d\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tsw\tx%d,0(x%d)\n", rt, tmp_reg);
+          FreeReg(tmp_reg, INT_T);
+          iconst_label_number++;
+        } else {
+          fprintf(fp, "\tsw\tx%d,-%d(fp)\n", rt, AR_offset);
+        }
+        FreeReg(rt, INT_T);
+      } else if (actual_parameter->dataType == INT_TYPE) {
+        if (AR_offset >= 2048) {
+          fprintf(fp, ".data\n");
+          fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, AR_offset);
+          fprintf(fp, ".text\n");
+          int tmp_reg = GetReg(INT_T);
+          fprintf(fp, "\tla\tx%d, .IC%d\n", tmp_reg, iconst_label_number);
+          fprintf(fp, "\tlw\tx%d,0(x%d)\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tsub\tx%d,fp,x%d\n", tmp_reg, tmp_reg);
+          fprintf(fp, "\tfsw\tf%d,0(x%d)\n", rt, tmp_reg);
+          FreeReg(tmp_reg, INT_T);
+          iconst_label_number++;
+        } else {
+          fprintf(fp, "\tfsw\tf%d,-%d(fp)\n", rt, AR_offset);
+        }
+        FreeReg(rt, FLOAT_T);
+      }
+    }
+    else {
+      //save array address to stack
+      AR_offset += 8;
+    }
+    parameter = parameter->next;
+    actual_parameter = actual_parameter->rightSibling;
+  }
 }
 
 void GenFunctionCall(AST_NODE *stmt_node) {
   int used_i[7], used_f[12];
-  FreeSavedRegisters();
-  SaveTempRegisters(used_i, used_f);
+  
   AST_NODE *function_id_node = stmt_node->child;
   if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "write") == 0) {
+    FreeSavedRegisters();
+    SaveTempRegisters(used_i, used_f);
     AST_NODE *parameter_node = function_id_node->rightSibling->child;
     if (parameter_node->dataType == CONST_STRING_TYPE) {
       char *s = (char *)malloc(strlen(parameter_node->semantic_value.const1->const_u.sc) - 2);
@@ -753,17 +806,26 @@ void GenFunctionCall(AST_NODE *stmt_node) {
       }
     }
   } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "read") == 0) {
+    FreeSavedRegisters();
+    SaveTempRegisters(used_i, used_f);
     fprintf(fp, "\tcall\t_read_int\n");
   } else if (strcmp(function_id_node->semantic_value.identifierSemanticValue.identifierName, "fread") == 0) {
+    FreeSavedRegisters();
+    SaveTempRegisters(used_i, used_f);
     fprintf(fp, "\tcall\t_read_float\n");
   } else {
     // push parameter
     // push space for parameter
+    int origin_AR_offset = AR_offset;
+    PassParameter(function_id_node, fp);
+    FreeSavedRegisters();
+    SaveTempRegisters(used_i, used_f);
     int tmp_reg = GetReg(INT_T);
     FreeReg(tmp_reg, INT_T);
     fprintf(fp, "\tla\tx%d,_start_%s\n", tmp_reg, function_id_node->semantic_value.identifierSemanticValue.identifierName);
     fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
     // pop space for parameter
+    AR_offset = origin_AR_offset;
   }
   RestoreTempRegisters(used_i, used_f);
 }
@@ -973,6 +1035,31 @@ void GenFunctionDeclaration(AST_NODE *declaration_node) {
   AST_NODE *function_id_node = type_node->rightSibling;
   fprintf(fp, "_start_%s:\n", function_id_node->semantic_value.identifierSemanticValue.identifierName);
   GenPrologue(function_id_node->semantic_value.identifierSemanticValue.identifierName);
+  SymbolTableEntry *entry = function_id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+  
+  if (entry->attribute->attr.functionSignature->parametersCount) {
+    int function_offset = 16;
+    AST_NODE *parameter_node = function_id_node->rightSibling->child;
+    while(parameter_node != NULL) {
+      if (parameter_node->child->rightSibling->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
+        function_offset += 4;
+      } else {
+        function_offset += 8;
+      }
+      parameter_node = parameter_node->rightSibling;
+    }
+    parameter_node = function_id_node->rightSibling->child;
+  
+    while(parameter_node != NULL) {
+      if (parameter_node->child->rightSibling->semantic_value.identifierSemanticValue.kind == NORMAL_ID) {
+        function_offset -= 4;
+      } else {
+        function_offset -= 8;
+      }
+      parameter_node->child->rightSibling->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset = -function_offset;
+      parameter_node = parameter_node->rightSibling;
+    }
+  }
   GenBlockNode(function_id_node->rightSibling->rightSibling);
   GenEpilogue(function_id_node->semantic_value.identifierSemanticValue.identifierName);
 }

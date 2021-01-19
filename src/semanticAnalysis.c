@@ -464,7 +464,7 @@ void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList
       if (declaredLocally(parameter->parameterName)) {
         printErrorMsgSpecial(idNode, idNode->rightSibling->semantic_value.identifierSemanticValue.identifierName, SYMBOL_REDECLARE);
       } else {
-        idNode->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idNode->rightSibling->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
+        idNode->rightSibling->semantic_value.identifierSemanticValue.symbolTableEntry = enterSymbol(idNode->rightSibling->semantic_value.identifierSemanticValue.identifierName, symbol_attr);
       }
       parameter->type = type_descriptor;
       node = node->rightSibling;
