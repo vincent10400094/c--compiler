@@ -6,11 +6,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+
 #include "header.h"
 #include "codeGen.h"
+#include "symbolTable.h"
+
 int linenumber = 1;
 AST_NODE *prog;
 char *srcPath;
+
+int yylex();
+int yyerror(const char *s);
+
+void printGV(AST_NODE *root, char *fileName);
 
 extern int g_anyErrorOccur;
 

@@ -35,11 +35,14 @@ void PassParameter(AST_NODE *functuon_node, FILE *fp);
 void GenFunctionCall(AST_NODE *stmt_node);
 void GenIfStmt(AST_NODE *stmt_node);
 void GenWhileStmt(AST_NODE *stmt_node);
+void GenForStmt(AST_NODE *stmt_node);
 void symbolTableAdd(char *symbol_name);
 void GenHead(AST_NODE *id_name_node);
 void CodeGen(AST_NODE *root, FILE *fp);
 int GenVp(AST_NODE *id_node);
 int LoadVariable(AST_NODE *id_node);
+int FloatToInt(int reg_number);
+int IntToFloat(int reg_number);
 
 int GetOffset() {
   return AR_offset;
@@ -47,6 +50,22 @@ int GetOffset() {
 
 void ResetOffset() {
   AR_offset = 0;
+}
+
+int FloatToInt(int reg_number) {
+  assert(CheckFLOAT_T(reg_number));
+  int tmp_reg = GetReg(INT_T);
+  fprintf(fp, "\tfcvt.w.s\tx%d,f%d\n", tmp_reg, reg_number);
+  FreeReg(reg_number, FLOAT_T);
+  return tmp_reg;
+}
+
+int IntToFloat(int reg_number) {
+  assert(CheckINT_T(reg_number));
+  int tmp_reg = GetReg(FLOAT_T);
+  fprintf(fp, "\tfcvt.s.w\tf%d,x%d\n", tmp_reg, reg_number);
+  FreeReg(reg_number, INT_T);
+  return tmp_reg;
 }
 
 void AllocateSymbol(SymbolTableEntry *entry, int size) {
@@ -116,13 +135,13 @@ void GenSymbolDeclaration(AST_NODE *declaration_list_node) {
                     reg_float[tmp_reg].dirty = 1;
                     reg_float[tmp_reg].ref_count += 1;
                   } else if (id_node->dataType == INT_TYPE) {  // float to int
-                    // reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
-                    // reg_int[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
-                    // reg_int[tmp_reg].dirty = 1;
-                    // reg_int[tmp_reg].ref_count += 1;
+                    fprintf(fp, "\tfcvt.w.s\tx%d,f%d\n", tmp_reg, rs);
+                    reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+                    reg_int[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
+                    reg_int[tmp_reg].dirty = 1;
+                    reg_int[tmp_reg].ref_count += 1;
                   }
                 }
-
                 // if (init_node->dataType == INT_TYPE) {
                 //   AllocateSymbol(id_node->semantic_value.identifierSemanticValue.symbolTableEntry, 4);
                 //   fprintf(fp, "\tsw\tx%d,-%d(fp)\n", rs, id_node->semantic_value.identifierSemanticValue.symbolTableEntry->attribute->attr.typeDescriptor->offset);
@@ -206,6 +225,7 @@ void GenStatement(AST_NODE *stmt_node) {
         break;
       }
       case FOR_STMT: {
+        GenForStmt(stmt_node);
         break;
       }
       case FUNCTION_CALL_STMT: {
@@ -552,9 +572,17 @@ int GenExpr(AST_NODE *expr_node) {
         }
       }
       return rd;
-    } else if (expr_node->child->dataType == FLOAT_TYPE && expr_node->child->rightSibling->dataType == FLOAT_TYPE) {
-      FreeReg(rs1, FLOAT_T);
-      FreeReg(rs2, FLOAT_T);
+    } else if (expr_node->child->dataType == FLOAT_TYPE || expr_node->child->rightSibling->dataType == FLOAT_TYPE) {
+      assert(expr_node->child->dataType == FLOAT_TYPE || expr_node->child->dataType == INT_TYPE);
+      if (expr_node->child->dataType == FLOAT_TYPE)
+        FreeReg(rs1, FLOAT_T);
+      else
+        rs1 = IntToFloat(rs1);
+      assert(expr_node->child->rightSibling->dataType == FLOAT_TYPE || expr_node->child->rightSibling->dataType == INT_TYPE);
+      if (expr_node->child->rightSibling->dataType == FLOAT_TYPE)
+        FreeReg(rs2, FLOAT_T);
+      else
+        rs2 = IntToFloat(rs2);
       int rd;
       switch (semanticValue->op.binaryOp) {
         case BINARY_OP_ADD: {
@@ -837,14 +865,19 @@ void GenReturnStmt(AST_NODE *return_node) {
   }
   if (return_node->child) {  // with return value
     int rs = GenExpr(return_node->child);
-    if (return_node->child->dataType == INT_TYPE) {
+    DATA_TYPE return_type = function_decl_node->child->dataType;
+    if (return_type == INT_TYPE) {
+      if (return_node->child->dataType == FLOAT_TYPE)
+        rs = FloatToInt(rs);
       fprintf(fp, "\tmv\ta0,x%d\n", rs);
-    } else if (return_node->child->dataType == FLOAT_TYPE) {
+    } else if (return_type == FLOAT_TYPE) {
       // TODO
+      if (return_node->child->dataType == INT_TYPE)
+        rs = IntToFloat(rs);
       fprintf(fp, "\tfmv.s\tfa0,f%d\n", rs);
     }
     assert(return_node->child->dataType == INT_TYPE || return_node->child->dataType == FLOAT_TYPE);
-    if (return_node->child->dataType == INT_TYPE) {
+    if (return_type == INT_TYPE) {
       FreeReg(rs, INT_T);
     } else {
       FreeReg(rs, FLOAT_T);
@@ -898,6 +931,60 @@ void GenIfStmt(AST_NODE *stmt_node) {
     GenStatement(test_node->rightSibling);
     FreeSavedRegisters();
   }
+  fprintf(fp, "_Lexit%d:\n", label_number);
+}
+
+void GenForStmt(AST_NODE *stmt_node) {
+  AST_NODE *node = stmt_node->child;
+  int label_number = max_label_number++;
+  int tmp_reg;
+  if (node->nodeType != NUL_NODE) {
+    AST_NODE *assign_node = node->child;
+    while (assign_node) {
+      GenAssignment(assign_node);
+      assign_node = assign_node->rightSibling;
+    }
+  }
+  FreeSavedRegisters();
+  node = node->rightSibling;
+  if (node->nodeType != NUL_NODE) {
+    fprintf(fp, "_Test%d:\n", label_number);
+    AST_NODE *test_node = node->child;
+    while (test_node->rightSibling != NULL)
+      test_node = test_node->rightSibling;
+    int test_reg = GenExpr(test_node);
+    assert(test_node->dataType == INT_TYPE || test_node->dataType == FLOAT_TYPE);
+    if (test_node->dataType == INT_TYPE) {
+      FreeReg(test_reg, INT_T);
+    } else {
+      FreeReg(test_reg, FLOAT_T);
+    }
+    fprintf(fp, "\tbnez\tx%d,_Lstart%d\n", test_reg, label_number);
+    // jump to exit
+    tmp_reg = GetReg(INT_T);
+    FreeReg(tmp_reg, INT_T);
+    fprintf(fp, "\tla\tx%d,_Lexit%d\n", tmp_reg, label_number);
+    fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
+  }
+  // if hold, jump here
+  fprintf(fp, "_Lstart%d:\n", label_number);
+  node = node->rightSibling;
+  // if block if not empty block
+  if (node->rightSibling->nodeType != NUL_NODE) {
+    GenStatement(node->rightSibling);
+    if (node->nodeType != NUL_NODE) {
+      AST_NODE *assign_node = node->child;
+      while (assign_node) {
+        GenAssignment(assign_node);
+        assign_node = assign_node->rightSibling;
+      }
+    }
+    FreeSavedRegisters();
+  }
+  tmp_reg = GetReg(INT_T);
+  fprintf(fp, "\tla\tx%d,_Test%d\n", tmp_reg, label_number);
+  fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
+  FreeReg(tmp_reg, INT_T);
   fprintf(fp, "_Lexit%d:\n", label_number);
 }
 
@@ -965,10 +1052,11 @@ void GenAssignment(AST_NODE *assignment_node) {
         reg_float[tmp_reg].dirty = 1;
         reg_float[tmp_reg].ref_count += 1;
       } else if (id_node->dataType == INT_TYPE) {  // float to int
-        // reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
-        // reg_int[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
-        // reg_int[tmp_reg].dirty = 1;
-        // reg_int[tmp_reg].ref_count += 1;
+        fprintf(fp, "\tfcvt.w.s\tx%d,f%d\n", tmp_reg, rs);
+        reg_int[tmp_reg].entry = id_node->semantic_value.identifierSemanticValue.symbolTableEntry;
+        reg_int[tmp_reg].entry->attribute->attr.typeDescriptor->reg = tmp_reg;
+        reg_int[tmp_reg].dirty = 1;
+        reg_int[tmp_reg].ref_count += 1;
       }
     }
   } else {  // array
