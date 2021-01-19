@@ -1,4 +1,4 @@
-test1.c
+test1.c (ok)
 1
 2
 3
@@ -10,7 +10,7 @@ test1.c
 9
 10
 
-test2.c
+test2.c (ok)
 1
 2
 3
@@ -22,7 +22,7 @@ test2.c
 9
 10
 
-test3.c
+test3.c (ok)
 1
 2
 3
@@ -34,7 +34,7 @@ test3.c
 9
 10
 
-test4.c
+test4.c (WA)
 1
 2
 3
@@ -46,7 +46,7 @@ test4.c
 9
 10
 
-test5.c
+test5.c (WA)
 1
 2
 3
@@ -58,7 +58,7 @@ test5.c
 9
 10
 
-test6.c
+test6.c (RE)
 1
 2
 3
@@ -70,13 +70,13 @@ test6.c
 9
 10
 
-test7.c
+test7.c (RE)
 66666 is at 8
 
-test8.c
+test8.c (RE)
 66666 is at 8
 
-test9.c
+test9.c (WA)
 visit 0
 visit 1
 visit 3
@@ -98,7 +98,7 @@ visit 6
 visit 13
 visit 14
 
-test10.c
+test10.c (WA)
 0123
 0132
 0213
@@ -125,10 +125,10 @@ test10.c
 3210
 
 
-test11.c
+test11.c (RE)
 MST weight = 16
 
-test12.c
+test12.c (ok)
 Single-Source Shortest Path:
 0-->0 : cost=0
 0-->1 : cost=2
@@ -136,7 +136,7 @@ Single-Source Shortest Path:
 0-->3 : cost=6
 0-->4 : cost=7
 
-test13.c
+test13.c (ok)
 All-Pairs Shortest Path:
 0 2 5 6 7
 2 0 3 8 5
@@ -144,8 +144,8 @@ All-Pairs Shortest Path:
 6 8 11 0 9
 7 5 7 9 0
 
-test14.c
+test14.c (ok)
 4
 
-test15.c
+test15.c (TLE)
 634
