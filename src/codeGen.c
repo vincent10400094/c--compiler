@@ -757,7 +757,10 @@ void PassParameter(AST_NODE *function_id_node, FILE *fp) {
     assert(actual_parameter->dataType != NONE_TYPE);
     if (parameter->type->kind == SCALAR_TYPE_DESCRIPTOR) {
       AR_offset += 4;
-      if (actual_parameter->dataType == INT_TYPE) {
+      if (parameter->type->properties.dataType == INT_TYPE) {
+        if (actual_parameter->dataType == FLOAT_TYPE) {
+          rt = FloatToInt(rt);
+        }
         if (AR_offset >= 2048) {
           fprintf(fp, ".data\n");
           fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, AR_offset);
@@ -773,7 +776,10 @@ void PassParameter(AST_NODE *function_id_node, FILE *fp) {
           fprintf(fp, "\tsw\tx%d,-%d(fp)\n", rt, AR_offset);
         }
         FreeReg(rt, INT_T);
-      } else if (actual_parameter->dataType == INT_TYPE) {
+      } else if (parameter->type->properties.dataType == FLOAT_TYPE) {
+        if (actual_parameter->dataType == INT_TYPE) {
+          rt = IntToFloat(rt);
+        }
         if (AR_offset >= 2048) {
           fprintf(fp, ".data\n");
           fprintf(fp, ".IC%d: .word %d\n", iconst_label_number, AR_offset);
@@ -846,12 +852,14 @@ void GenFunctionCall(AST_NODE *stmt_node) {
     // push space for parameter
     int origin_AR_offset = AR_offset;
     PassParameter(function_id_node, fp);
+    fprintf(fp, "add\tsp,sp,-%d\n", AR_offset - origin_AR_offset);
     FreeSavedRegisters();
     SaveTempRegisters(used_i, used_f);
     int tmp_reg = GetReg(INT_T);
     FreeReg(tmp_reg, INT_T);
     fprintf(fp, "\tla\tx%d,_start_%s\n", tmp_reg, function_id_node->semantic_value.identifierSemanticValue.identifierName);
     fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
+    fprintf(fp, "add\tsp,sp,%d\n", AR_offset - origin_AR_offset);
     // pop space for parameter
     AR_offset = origin_AR_offset;
   }
