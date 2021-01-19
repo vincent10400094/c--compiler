@@ -803,14 +803,19 @@ void GenReturnStmt(AST_NODE *return_node) {
   }
   if (return_node->child) {  // with return value
     int rs = GenExpr(return_node->child);
-    if (return_node->child->dataType == INT_TYPE) {
+    DATA_TYPE return_type = function_decl_node->child->dataType;
+    if (return_type == INT_TYPE) {
+      if (return_node->child->dataType == FLOAT_TYPE)
+        rs = FloatToInt(rs);
       fprintf(fp, "\tmv\ta0,x%d\n", rs);
-    } else if (return_node->child->dataType == FLOAT_TYPE) {
+    } else if (return_type == FLOAT_TYPE) {
       // TODO
+      if (return_node->child->dataType == INT_TYPE)
+        rs = IntToFloat(rs);
       fprintf(fp, "\tfmv.s\tfa0,f%d\n", rs);
     }
     assert(return_node->child->dataType == INT_TYPE || return_node->child->dataType == FLOAT_TYPE);
-    if (return_node->child->dataType == INT_TYPE) {
+    if (return_type == INT_TYPE) {
       FreeReg(rs, INT_T);
     } else {
       FreeReg(rs, FLOAT_T);

@@ -409,6 +409,7 @@ void declareFunction(AST_NODE* idNode) {
   SymbolTableEntry* type_entry = NULL;
   int is_type_array = 0;
   symbol_attr->attr.functionSignature->returnType = getDeclareType(idNode, &type_entry, &is_type_array);
+  idNode->dataType = symbol_attr->attr.functionSignature->returnType;
   AST_NODE* funtionNameNode = idNode->rightSibling;
   AST_NODE* parameterListNode = funtionNameNode->rightSibling;
 
