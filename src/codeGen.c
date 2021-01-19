@@ -921,16 +921,17 @@ void GenFunctionCall(AST_NODE *stmt_node) {
   } else {
     // push parameter
     // push space for parameter
+    SaveTempRegisters(used_i, used_f);
     int origin_AR_offset = AR_offset;
     PassParameter(function_id_node, fp);
-    fprintf(fp, "\tadd\tsp,sp,-%d\n", AR_offset - origin_AR_offset);
     FreeSavedRegisters();
-    SaveTempRegisters(used_i, used_f);
+    fprintf(fp, "\tadd\tsp,sp,-%d\n", AR_offset - origin_AR_offset);
     int tmp_reg = GetReg(INT_T);
     FreeReg(tmp_reg, INT_T);
     fprintf(fp, "\tla\tx%d,_start_%s\n", tmp_reg, function_id_node->semantic_value.identifierSemanticValue.identifierName);
     fprintf(fp, "\tjalr\tx%d\n", tmp_reg);
     fprintf(fp, "\tadd\tsp,sp,%d\n", AR_offset - origin_AR_offset);
+
     // pop space for parameter
     AR_offset = origin_AR_offset;
   }
