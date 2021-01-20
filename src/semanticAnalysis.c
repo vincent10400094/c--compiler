@@ -456,9 +456,15 @@ void processParameterList(AST_NODE* parameterListNode, Parameter** parameterList
       parameter->parameterName = idNode->rightSibling->semantic_value.identifierSemanticValue.identifierName;
       SymbolTableEntry* type_entry;
       int is_type_array = 0;
-      getDeclareType(idNode, &type_entry, &is_type_array);
+      DATA_TYPE data_type = getDeclareType(idNode, &type_entry, &is_type_array);
       TypeDescriptor* type_descriptor = (TypeDescriptor*)malloc(sizeof(TypeDescriptor));
+
       processIdNode(idNode->rightSibling, &type_descriptor, is_type_array, type_entry);
+      if (type_descriptor->kind == SCALAR_TYPE_DESCRIPTOR) {
+        type_descriptor->properties.dataType = data_type;
+      } else {
+        type_descriptor->properties.arrayProperties.elementType = data_type;
+      }
       SymbolAttribute* symbol_attr = (SymbolAttribute*)malloc(sizeof(SymbolAttribute));
       symbol_attr->attributeKind = VARIABLE_ATTRIBUTE;
       symbol_attr->attr.typeDescriptor = type_descriptor;

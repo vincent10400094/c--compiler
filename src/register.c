@@ -267,7 +267,7 @@ void SaveTempRegisters(int *used_i, int *used_f) {
     if (reg_int[int_t_reg_list[i]].used) {
       AR_offset += 8;
       used_i[i] = AR_offset;
-      fprintf(fp, "\tsw\tx%d,-%d(fp)\n", int_t_reg_list[i], AR_offset);
+      fprintf(fp, "\tsw\tx%d,-%d(fp) #save temp\n", int_t_reg_list[i], AR_offset);
     } else {
       used_i[i] = -1;
     }
@@ -276,7 +276,7 @@ void SaveTempRegisters(int *used_i, int *used_f) {
     if (reg_float[float_t_reg_list[i]].used) {
       AR_offset += 8;
       used_f[i] = AR_offset;
-      fprintf(fp, "\tfsw\tf%d,-%d(fp)\n", float_t_reg_list[i], AR_offset);
+      fprintf(fp, "\tfsw\tf%d,-%d(fp) #save temp\n", float_t_reg_list[i], AR_offset);
     } else {
       used_f[i] = -1;
     }

@@ -917,7 +917,7 @@ char *argv[];
      yyin = fopen(argv[1],"r");
      srcPath = argv[1];
      yyparse();
-     /* printGV(prog, NULL); */
+     printGV(prog, NULL);
      
      initializeSymbolTable();
      semanticAnalysis(prog);
