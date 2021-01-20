@@ -239,7 +239,7 @@ void processProgramNode(AST_NODE* programNode) {
     }
     node = node->rightSibling;
   }
-  printAllTable();
+  // printAllTable();
 }
 
 void processDeclarationNode(AST_NODE* declarationNode) {
