@@ -932,7 +932,7 @@ char *argv[];
 
 
 int yyerror (mesg)
-char *mesg;
+const char *mesg;
   {
   printf("%s\t%d\t%s\t%s\n", "Error found in Line ", linenumber, "next token: ", yytext );
   exit(1);
