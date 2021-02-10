@@ -6,10 +6,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+
 #include "header.h"
+#include "codeGen.h"
+#include "symbolTable.h"
+
 int linenumber = 1;
 AST_NODE *prog;
 char *srcPath;
+
+int yylex();
+int yyerror(const char *s);
+
+void printGV(AST_NODE *root, char *fileName);
 
 extern int g_anyErrorOccur;
 
@@ -908,21 +917,22 @@ char *argv[];
      yyin = fopen(argv[1],"r");
      srcPath = argv[1];
      yyparse();
-     printGV(prog, NULL);
+     /* printGV(prog, NULL); */
      
      initializeSymbolTable();
-     
      semanticAnalysis(prog);
-     
      symbolTableEnd();
+     
      if (!g_anyErrorOccur) {
         printf("Parsing completed. No errors found.\n");
+        FILE *output = fopen("output.s", "w");
+        CodeGen(prog, output);
      }
   } /* main */
 
 
 int yyerror (mesg)
-char *mesg;
+const char *mesg;
   {
   printf("%s\t%d\t%s\t%s\n", "Error found in Line ", linenumber, "next token: ", yytext );
   exit(1);

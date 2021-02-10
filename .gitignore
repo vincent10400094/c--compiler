@@ -55,6 +55,7 @@ dkms.conf
 .DS_Store
 *.pdf
 *.gv
+*.s
 
 # Output files
 parser.output
@@ -66,3 +67,7 @@ lex.yy.c
 # test data
 testdata/
 test.c
+
+# vscode
+.vscode/
+

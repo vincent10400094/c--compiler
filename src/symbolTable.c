@@ -41,6 +41,8 @@ void initializeSymbolTable() {
 }
 
 void symbolTableEnd() {
+  topSymbolTable = firstSymbolTable;
+  currentSymbolTable = firstSymbolTable;
 }
 
 SymbolTableEntry *lookupSymbolTable(SymbolTable *table, char *symbolname) {
@@ -194,6 +196,22 @@ void openScope() {
 void closeScope() {
   assert(topSymbolTable->prevTable != NULL);
   topSymbolTable = topSymbolTable->prevTable;
+}
+
+void pushTable() {
+  SymbolTable *nxtTable = currentSymbolTable->nxtTable;
+  nxtTable->prevTable = topSymbolTable;
+  topSymbolTable = nxtTable;
+  currentSymbolTable = currentSymbolTable->nxtTable;
+}
+
+void popTable() {
+  assert(topSymbolTable->prevTable != NULL);
+  topSymbolTable = topSymbolTable->prevTable;
+}
+
+int currentScope() {
+  return topSymbolTable->scope;
 }
 
 #endif
